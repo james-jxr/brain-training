@@ -1,0 +1,60 @@
+name: Feedback Design Item
+description: For manually creating feedback-driven design items in the same format as the pipeline
+labels: ["feedback-agent"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This issue tracks a feedback-driven change that requires a design decision before it can be implemented autonomously.
+
+        **To resolve:**
+        1. Add a comment with your decision
+        2. Apply the label `ready-to-implement`
+
+        The next nightly pipeline run will detect this label, read your decision comment, and implement the change automatically.
+
+  - type: input
+    id: item-id
+    attributes:
+      label: Item ID
+      description: Short slug (e.g. stroop-button-colour)
+      placeholder: my-change-id
+    validations:
+      required: true
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: Type
+      options:
+        - feature
+        - design
+        - mechanic_change
+        - bug_fix
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - high
+        - medium
+        - low
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What needs to change and why
+    validations:
+      required: true
+
+  - type: textarea
+    id: files
+    attributes:
+      label: Files Likely Affected
+      description: One file path per line
