@@ -1,0 +1,29 @@
+{
+  "project_id": "brain-training",
+  "central_db_url": "${SUPABASE_URL}",
+  "agents": [
+    "functional_design_agent",
+    "interaction_design_agent",
+    "feedback_agent",
+    "build_agent",
+    "testing_agent",
+    "code_audit_agent"
+  ],
+  "feedback_source": "railway_postgresql",
+  "audit_schedule": "weekly",
+  "stack": {
+    "frontend": "React + Vite",
+    "backend": "FastAPI (Python)",
+    "database": "PostgreSQL (Railway)",
+    "testing_frontend": "Vitest + jsdom",
+    "testing_backend": "pytest + httpx",
+    "deployment": "Railway"
+  },
+  "docs": {
+    "product_brief": "docs/product-brief.md",
+    "functional_spec": "docs/functional-spec.md",
+    "design_guide": "docs/design-guide.md",
+    "technical_architecture": "docs/technical-architecture.md",
+    "legacy_spec": "spec.md"
+  }
+}

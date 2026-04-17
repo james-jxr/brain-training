@@ -1,0 +1,111 @@
+/* ─── BaselineTest — page shell ──────────────────────────────────────────── */
+
+.baseline-page {
+  min-height: 100vh;
+  background: var(--color-bg-base, #fafafa);
+  padding: var(--space-4, 1rem);
+}
+
+/* ─── Overall progress bar (across the whole assessment) ─────────────────── */
+
+.baseline-overall-progress {
+  max-width: 720px;
+  margin: 0 auto var(--space-4, 1rem);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3, 0.75rem);
+}
+
+.baseline-overall-progress__label {
+  font-size: var(--text-body-sm, 0.875rem);
+  color: var(--color-text-secondary, #6b7280);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.baseline-overall-progress__track {
+  flex: 1;
+  height: 6px;
+  background: var(--color-border, #e5e7eb);
+  border-radius: var(--radius-full, 9999px);
+  overflow: hidden;
+}
+
+.baseline-overall-progress__fill {
+  height: 100%;
+  background: var(--color-primary, #6366f1);
+  border-radius: var(--radius-full, 9999px);
+  transition: width 0.4s ease;
+}
+
+/* ─── SkillProfileScreen — result rows ───────────────────────────────────── */
+
+.baseline-result-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-3, 0.75rem) 0;
+  border-bottom: 1px solid var(--color-border, #e5e7eb);
+}
+
+.baseline-result-row:last-child {
+  border-bottom: none;
+}
+
+.baseline-result-row__name {
+  font-weight: 500;
+}
+
+.baseline-result-row__level {
+  font-weight: 600;
+  font-size: var(--text-body-sm, 0.875rem);
+  padding: 2px 12px;
+  border-radius: var(--radius-full, 9999px);
+  background: var(--color-surface-secondary, #f5f5f5);
+}
+
+.baseline-result-row__level--easy   { color: var(--color-success, #22c55e); }
+.baseline-result-row__level--medium { color: var(--color-warning, #f59e0b); }
+.baseline-result-row__level--hard   { color: var(--color-error,   #ef4444); }
+
+/* ─── BaselinePrompt (shown on Dashboard) ────────────────────────────────── */
+
+.baseline-prompt {
+  background: linear-gradient(135deg, var(--color-primary, #6366f1) 0%, #8b5cf6 100%);
+  border-radius: var(--radius-lg, 0.75rem);
+  padding: var(--space-5, 1.25rem);
+  color: #fff;
+  margin-bottom: var(--space-6, 1.5rem);
+}
+
+.baseline-prompt__body {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3, 0.75rem);
+  margin-bottom: var(--space-4, 1rem);
+}
+
+.baseline-prompt__icon {
+  font-size: 2rem;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.baseline-prompt__title {
+  margin: 0 0 var(--space-1, 0.25rem);
+  color: #fff;
+  font-size: var(--text-heading-md, 1.125rem);
+}
+
+.baseline-prompt__text {
+  margin: 0;
+  opacity: 0.9;
+  line-height: 1.5;
+  font-size: var(--text-body-sm, 0.875rem);
+}
+
+.baseline-prompt__actions {
+  display: flex;
+  gap: var(--space-3, 0.75rem);
+  flex-wrap: wrap;
+}

@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.db
+*.sqlite3
+backend/venv/
+backend/.env
+.env
+.pytest_cache/
+
+# Node / frontend
+node_modules/
+frontend/dist/
+frontend/*.mjs
+npm-debug.log*
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
