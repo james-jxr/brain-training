@@ -1,4 +1,4 @@
-# Loads agent system prompts from the Agent Central Supabase database.
+# Loads agent system prompts and principles from the Agent Central Supabase database.
 # Falls back gracefully if Supabase is not configured (e.g. local dev without creds).
 import os
 from functools import lru_cache
