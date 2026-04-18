@@ -79,6 +79,7 @@ from feedback_agent.github_issues import (
 from feedback_agent.spec_updater import update_spec
 from feedback_agent.test_updater import update_tests
 from feedback_agent.agent_loader import get_system_prompt
+from feedback_agent.design_agent import review_needs_decision_issues
 
 DRY_RUN = os.environ.get("DRY_RUN", "0") == "1"
 MAX_FIX_ITERATIONS = 3
@@ -438,23 +439,29 @@ def run_pipeline():
     }
 
     try:
+        # ── 0. Design agent: auto-resolve needs-decision issues ─────────────
+        print("\n[Stage 0] Running design agent on open needs-decision issues...")
+        auto_resolved = review_needs_decision_issues(GITHUB_TOKEN, GITHUB_REPOSITORY)
+        if auto_resolved:
+            print(f"  Design agent resolved {auto_resolved} issue(s) → now ready to implement")
+
         # ── 1. Fetch unprocessed feedback ──────────────────────────────────────
         feedback = fetch_unprocessed_feedback(conn)
         print(f"Unprocessed feedback items: {len(feedback)}")
         run_summary["feedback_count"] = len(feedback)
 
-        if not feedback:
-            update_feedback_run(conn, run_id, {"status": "no_changes", "feedback_count": 0})
-            run_summary["status"] = "no_changes"
-            _append_run_log(run_summary)
-            print("Nothing to process. Exiting.")
-            return
-
         # ── 2. Check for resolved design items ────────────────────────────────
-        print("\n[Step 2] Checking for resolved design items on GitHub...")
+        print("\n[Stage 1] Checking for resolved design items on GitHub...")
         resolved_items = fetch_resolved_design_items(GITHUB_TOKEN, GITHUB_REPOSITORY)
         if resolved_items:
             print(f"  Found {len(resolved_items)} resolved item(s) to implement")
+
+        if not feedback and not resolved_items:
+            update_feedback_run(conn, run_id, {"status": "no_changes", "feedback_count": 0})
+            run_summary["status"] = "no_changes"
+            _append_run_log(run_summary)
+            print("No new feedback and no resolved issues. Nothing to do.")
+            return
 
         # ── 3. Synthesise ──────────────────────────────────────────────────────
         print("\n[Step 3] Synthesising feedback with Claude...")
