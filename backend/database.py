@@ -5,10 +5,11 @@ import os
 
 class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///./brain_training.db"
-    SECRET_KEY: str = "your-secret-key-change-in-production"
+    SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
     FRONTEND_URL: str = "http://localhost:5173"
+    ADMIN_EMAILS: str = ""  # comma-separated list of admin email addresses
 
     class Config:
         env_file = ".env"
