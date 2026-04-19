@@ -2,12 +2,21 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import datetime
-from backend.database import get_db
+from backend.database import get_db, settings
 from backend.models import User, FeedbackEntry
 from backend.schemas import FeedbackCreate, FeedbackResponse, FeedbackEntryGroup, FeedbackExportResponse
 from backend.security import get_current_user, get_current_user_optional
 
 router = APIRouter(prefix="/api/feedback", tags=["feedback"])
+
+
+def _require_admin(current_user: User) -> None:
+    """Raise 403 if the current user is not in the ADMIN_EMAILS list."""
+    admin_emails = {e.strip() for e in settings.ADMIN_EMAILS.split(",") if e.strip()}
+    if not admin_emails:
+        raise HTTPException(status_code=403, detail="ADMIN_EMAILS not configured")
+    if current_user.email not in admin_emails:
+        raise HTTPException(status_code=403, detail="Admin access required")
 
 
 @router.post("", response_model=FeedbackResponse)
@@ -48,15 +57,14 @@ def export_feedback(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Export all feedback entries grouped by page_context.
+    """Export all feedback entries grouped by page_context. Admin only.
 
     Query params:
     - from_date: ISO date string (e.g. "2026-04-01"), optional
     - to_date: ISO date string (e.g. "2026-04-30"), optional
-
-    Intended for pipeline use to feed the Feedback Synthesis step.
-    Returns all feedback (across all users) if called by any authenticated user.
     """
+    _require_admin(current_user)
+
     query = db.query(FeedbackEntry)
 
     # Apply date filters if provided
