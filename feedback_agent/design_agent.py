@@ -4,11 +4,27 @@ from pathlib import Path
 
 import anthropic
 from github import Github, GithubException
+from feedback_agent.agent_loader import get_system_prompt
 
 REPO_ROOT = Path(__file__).parent.parent
-PROMPTS_DIR = Path(__file__).parent / "prompts"
-
 SPEC_PATH = REPO_ROOT / "spec.md"
+
+# Built-in system prompt used when Supabase is unavailable
+_BUILTIN_SYSTEM_PROMPT = """You are the Design Review Agent. You review GitHub Issues that were flagged as needing a design decision, and determine whether you can resolve them using the project's existing specification.
+
+Read the issue carefully. Look at the design questions listed in it. Cross-reference each question against the project specification.
+
+- If the spec provides enough information to make a confident, specific decision for ALL questions: set can_resolve to true and write a clear, actionable decision comment.
+- If ANY question requires a judgement call not covered by the spec: set can_resolve to false.
+
+Rules:
+- Do not invent design directions not grounded in the spec.
+- Output ONLY valid JSON. No prose before or after.
+
+Output format:
+{"can_resolve": true, "decision": "...", "remaining_questions": ""}
+or:
+{"can_resolve": false, "decision": "", "remaining_questions": "..."}"""
 
 
 def _load_spec() -> str:
@@ -16,25 +32,31 @@ def _load_spec() -> str:
 
 
 def _call_design_claude(issue_title: str, issue_body: str, spec: str) -> dict:
-    from feedback_agent.agent_loader import get_system_prompt
-    prompt_template = get_system_prompt("feedback_agent_design_reviewer") or (PROMPTS_DIR / "design_review.md").read_text()
-    prompt = (prompt_template
-              .replace("{spec_content}", spec)
-              .replace("{issue_title}", issue_title)
-              .replace("{issue_body}", issue_body))
+    system_prompt = get_system_prompt("design_review_agent") or _BUILTIN_SYSTEM_PROMPT
+
+    user_message = f"""## Project specification
+
+{spec}
+
+## Issue to review
+
+**Title:** {issue_title}
+
+{issue_body}"""
 
     client = anthropic.Anthropic()
     message = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=4096,
-        messages=[{"role": "user", "content": prompt}],
+        system=system_prompt,
+        messages=[{"role": "user", "content": user_message}],
     )
 
     raw = message.content[0].text.strip()
     if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
+        start = raw.index("\n") + 1
+        end = raw.rfind("```")
+        raw = raw[start:end] if end > start else raw[start:]
     raw = raw.strip()
 
     return json.loads(raw)
@@ -46,7 +68,7 @@ def review_needs_decision_issues(token: str, repo_name: str) -> int:
     whether it can resolve the design questions using the project spec.
 
     - If yes: posts decision comment, swaps needs-decision → ready-to-implement.
-    - If no: posts a "still needs input" comment summarising what's ambiguous.
+    - If no: posts a "still needs input" comment summarising what is ambiguous.
 
     Returns the count of issues auto-resolved (had ready-to-implement applied).
     """
@@ -107,7 +129,7 @@ def review_needs_decision_issues(token: str, repo_name: str) -> int:
             else:
                 comment = (
                     "**Design Agent Review** 🤖\n\n"
-                    "I reviewed the project spec but couldn't fully resolve this issue automatically.\n\n"
+                    "I reviewed the project spec but could not fully resolve this issue automatically.\n\n"
                     + result["remaining_questions"]
                     + "\n\n---\n*Please answer the outstanding questions above and apply "
                     "the `ready-to-implement` label when ready.*"
