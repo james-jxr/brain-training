@@ -34,10 +34,10 @@ const RULES = {
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+function pickRandom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
 function makeShape() {
-  return { shape: pick(SHAPES), color: pick(COLORS), size: pick(SIZES), fill: pick(FILLS) };
+  return { shape: pickRandom(SHAPES), color: pickRandom(COLORS), size: pickRandom(SIZES), fill: pickRandom(FILLS) };
 }
 
 function makeShapes(classifyFn, group, count) {
@@ -94,7 +94,7 @@ function ShapeIcon({ shape, color, size, fill }) {
 const VisualCategorisation = ({ difficulty, onComplete }) => {
   const tier = difficulty <= 3 ? 'easy' : difficulty <= 6 ? 'medium' : 'hard';
 
-  const [rule]      = useState(() => pick(RULES[tier]));
+  const [rule]      = useState(() => pickRandom(RULES[tier]));
   const [trialList] = useState(() => {
     const half = TOTAL_TRIALS / 2;
     const as   = makeShapes(rule.fn, 'A', half);
