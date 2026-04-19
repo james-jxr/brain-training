@@ -25,6 +25,7 @@ const LifestyleLog = () => {
         setStressLevel(data.data.stress_level.toString());
         setMood(data.data.mood.toString());
       } catch (err) {
+        console.error('Failed to load today lifestyle data:', err);
       }
     };
 
