@@ -87,6 +87,10 @@ class TestFeedbackSubmission:
 
 class TestFeedbackExport:
 
+    @pytest.fixture(autouse=True)
+    def set_admin_env(self, monkeypatch):
+        monkeypatch.setenv("ADMIN_EMAILS", "feedback@example.com")
+
     def test_export_feedback_authenticated(self, client):
         token = _register_and_token(client)
         client.post("/api/feedback", json={
