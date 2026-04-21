@@ -1,0 +1,67 @@
+name: Principles Compliance Gate
+
+# Blocks merging if the project has unresolved high-severity audit findings in Agent Central.
+# Also runs when Agent Central dispatches `run-principles-fix` after a nightly audit.
+
+on:
+  pull_request:
+    branches: [main]
+  repository_dispatch:
+    types: [run-principles-fix]
+
+jobs:
+  compliance-check:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check for unresolved high-severity findings
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          PROJECT_ID=$(echo "${{ github.repository }}" | cut -d'/' -f2)
+          echo "Checking compliance for project: $PROJECT_ID"
+
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "SUPABASE_URL or SUPABASE_ANON_KEY not set — skipping compliance check"
+            exit 0
+          fi
+
+          RESPONSE=$(curl -sf \
+            "${SUPABASE_URL}/rest/v1/code_audit_findings?project_id=eq.${PROJECT_ID}&severity=eq.high&resolved=eq.false&select=id,description,file_path,finding_type" \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            -H "Accept: application/json")
+
+          COUNT=$(echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d))" 2>/dev/null || echo "0")
+          echo "Unresolved high-severity findings: $COUNT"
+
+          if [ "$COUNT" -gt "0" ]; then
+            echo ""
+            echo "::error::This project has $COUNT unresolved high-severity audit finding(s)."
+            echo "Resolve them in Agent Central before merging:"
+            echo "$RESPONSE" | python3 -c "
+          import sys, json
+          findings = json.load(sys.stdin)
+          for i, f in enumerate(findings, 1):
+              print(f\"  {i}. [{f.get('finding_type','?')}] {f.get('file_path','?')}: {f.get('description','')[:120]}\")
+            " 2>/dev/null || echo "$RESPONSE"
+            exit 1
+          fi
+
+          echo "All clear — no unresolved high-severity findings."
+
+  trigger-fix-pipeline:
+    if: github.event_name == 'repository_dispatch' && github.event.action == 'run-principles-fix'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - name: Log dispatch
+        run: |
+          echo "Principles fix dispatch received."
+          echo "High findings reported: ${{ github.event.client_payload.high_findings }}"
+          echo "The nightly feedback pipeline will pick these up from Supabase on its next run."
+          echo "To trigger an immediate fix, run the feedback pipeline manually via workflow_dispatch."
