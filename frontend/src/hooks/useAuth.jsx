@@ -13,12 +13,12 @@ export const useAuth = () => {
 
 const storeToken = (token) => {
   if (token) {
-    localStorage.setItem('access_token', token);
+    sessionStorage.setItem('access_token', token);
   }
 };
 
 const clearToken = () => {
-  localStorage.removeItem('access_token');
+  sessionStorage.removeItem('access_token');
 };
 
 export const AuthProvider = ({ children }) => {
