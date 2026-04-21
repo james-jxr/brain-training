@@ -1,0 +1,176 @@
+#!/usr/bin/env python3
+"""
+Principles Fix Pipeline
+=======================
+Fetches unresolved high-severity audit findings from Supabase for this project
+and auto-implements fixes via the build agent, then opens a PR.
+
+Triggered by the repository_dispatch event 'run-principles-fix' from Agent Central,
+or manually via workflow_dispatch.
+
+Steps:
+  1. Fetch unresolved high-severity findings from Supabase
+  2. Create a fix branch
+  3. Implement each finding via the build agent (implementer.py)
+  4. Commit + push + open PR
+  5. Mark successfully fixed findings as resolved in Supabase
+"""
+
+import os
+import sys
+import requests
+from datetime import datetime, timezone
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from feedback_agent.implementer import implement_change
+from feedback_agent.git_helper import (
+    commit_all,
+    create_branch,
+    open_pr,
+    push_branch,
+)
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
+GITHUB_REPOSITORY = os.environ.get("GITHUB_REPOSITORY", "")
+
+
+def _project_id() -> str:
+    return GITHUB_REPOSITORY.split("/")[-1] if GITHUB_REPOSITORY else ""
+
+
+def _supabase_headers() -> dict:
+    return {
+        "apikey": SUPABASE_SERVICE_KEY,
+        "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
+        "Content-Type": "application/json",
+    }
+
+
+def fetch_findings(project_id: str) -> list[dict]:
+    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+        print("WARNING: SUPABASE_URL or SUPABASE_SERVICE_KEY not set — cannot fetch findings")
+        return []
+    resp = requests.get(
+        f"{SUPABASE_URL}/rest/v1/code_audit_findings",
+        headers=_supabase_headers(),
+        params={
+            "project_id": f"eq.{project_id}",
+            "severity": f"eq.high",
+            "resolved": "eq.false",
+            "select": "id,description,file_path,finding_type",
+        },
+        timeout=15,
+    )
+    if not resp.ok:
+        print(f"WARNING: failed to fetch findings: {resp.text[:200]}")
+        return []
+    return resp.json()
+
+
+def mark_resolved(finding_ids: list[str]):
+    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY or not finding_ids:
+        return
+    for fid in finding_ids:
+        resp = requests.patch(
+            f"{SUPABASE_URL}/rest/v1/code_audit_findings",
+            headers=_supabase_headers(),
+            params={"id": f"eq.{fid}"},
+            json={
+                "resolved": True,
+                "resolved_at": datetime.now(timezone.utc).isoformat(),
+            },
+            timeout=15,
+        )
+        if not resp.ok:
+            print(f"WARNING: could not mark finding {fid} resolved: {resp.text[:100]}")
+
+
+def finding_to_item(finding: dict) -> dict:
+    """Convert a Supabase finding row into a change item for the implementer."""
+    return {
+        "id": f"audit-{finding['id'][:8]}",
+        "description": finding["description"],
+        "files_likely_affected": [finding["file_path"]] if finding.get("file_path") else [],
+        "type": "bug_fix",
+        "finding_id": finding["id"],
+    }
+
+
+def main() -> int:
+    project_id = _project_id()
+    if not project_id:
+        print("ERROR: GITHUB_REPOSITORY not set")
+        return 1
+
+    print(f"Principles Fix Pipeline — project: {project_id}")
+
+    findings = fetch_findings(project_id)
+    if not findings:
+        print("No unresolved high-severity findings — nothing to do")
+        return 0
+
+    print(f"Found {len(findings)} high-severity finding(s) to fix")
+
+    branch_name = f"principles-fix/{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M')}"
+    create_branch(branch_name)
+    print(f"Branch: {branch_name}")
+
+    applied_ids = []
+    failed_ids = []
+
+    for finding in findings:
+        item = finding_to_item(finding)
+        print(f"\n  Fixing [{item['id']}]: {item['description'][:100]}...")
+        try:
+            file_map = implement_change(item)
+            if file_map:
+                applied_ids.append(finding["id"])
+                print(f"  Applied: {list(file_map.keys())}")
+            else:
+                failed_ids.append(finding["id"])
+                print(f"  SKIP: implementer returned no changes")
+        except Exception as e:
+            failed_ids.append(finding["id"])
+            print(f"  ERROR: {e}")
+
+    if not applied_ids:
+        print("\nNo changes implemented — skipping PR")
+        return 0
+
+    commit_all(f"fix: resolve {len(applied_ids)} high-severity audit finding(s)")
+    push_branch(branch_name)
+
+    applied_set = {f["id"] for f in findings if f["id"] in applied_ids}
+    fixed_lines = "\n".join(
+        f"- {f['description'][:120]}" for f in findings if f["id"] in applied_set
+    )
+    skipped_note = (
+        f"\n\n### Skipped ({len(failed_ids)})\n"
+        f"{len(failed_ids)} finding(s) could not be auto-implemented and remain open in Supabase.\n"
+        if failed_ids else ""
+    )
+    pr_body = (
+        f"## Principles Audit Fixes\n\n"
+        f"Auto-generated by the principles fix pipeline.\n\n"
+        f"### Fixed ({len(applied_ids)})\n{fixed_lines}"
+        f"{skipped_note}"
+    )
+
+    pr_url = open_pr(
+        branch_name,
+        f"fix: resolve {len(applied_ids)} principles audit finding(s)",
+        pr_body,
+    )
+    print(f"\nPR opened: {pr_url}")
+
+    mark_resolved(applied_ids)
+    print(f"Marked {len(applied_ids)} finding(s) as resolved in Supabase")
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
