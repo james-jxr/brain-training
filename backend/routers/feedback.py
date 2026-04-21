@@ -14,7 +14,7 @@ def _require_admin(current_user: User) -> None:
     """Raise 403 if the current user is not in the ADMIN_EMAILS list."""
     admin_emails = {e.strip() for e in settings.ADMIN_EMAILS.split(",") if e.strip()}
     if not admin_emails:
-        raise HTTPException(status_code=403, detail="ADMIN_EMAILS not configured")
+        raise HTTPException(status_code=403, detail="Admin access not configured")
     if current_user.email not in admin_emails:
         raise HTTPException(status_code=403, detail="Admin access required")
 
