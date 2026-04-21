@@ -4,7 +4,7 @@ Regression tests: feedback submission and export.
 import pytest
 from fastapi.testclient import TestClient
 from backend.main import app
-from backend.database import Base, engine
+from backend.database import Base, engine, settings
 
 
 @pytest.fixture(scope="function")
@@ -88,8 +88,8 @@ class TestFeedbackSubmission:
 class TestFeedbackExport:
 
     @pytest.fixture(autouse=True)
-    def set_admin_env(self, monkeypatch):
-        monkeypatch.setenv("ADMIN_EMAILS", "feedback@example.com")
+    def set_admin_emails(self, monkeypatch):
+        monkeypatch.setattr(settings, "ADMIN_EMAILS", "feedback@example.com")
 
     def test_export_feedback_authenticated(self, client):
         token = _register_and_token(client)
