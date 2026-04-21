@@ -9,9 +9,9 @@ jobs:
   feedback-pipeline:
     runs-on: ubuntu-latest
     permissions:
-      contents: write        # push branch + commit spec/run-log
+      contents: write        # push branch + commit spec/run-log + monitor auto-fix
       pull-requests: write   # open PR
-      issues: write          # create issues for non-implementable items
+      issues: write          # create issues for non-implementable items + escalations
 
     steps:
       - name: Checkout
@@ -61,6 +61,15 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           CI: "true"
+
+      - name: Pipeline failure recovery
+        if: failure() && steps.pipeline.conclusion == 'failure'
+        run: python feedback_agent/pipeline_monitor.py --run-id ${{ github.run_id }} --repo ${{ github.repository }}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
       - name: Upload run log on failure
         if: failure()
