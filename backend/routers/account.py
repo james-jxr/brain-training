@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Optional
 from backend.database import get_db
 from backend.models import User
@@ -13,6 +13,13 @@ class AccountUpdate(BaseModel):
     email: Optional[str] = None
     password: Optional[str] = None
     notification_time: Optional[str] = None
+
+    @field_validator('password')
+    @classmethod
+    def password_min_length(cls, v):
+        if v is not None and len(v) < 8:
+            raise ValueError('Password must be at least 8 characters')
+        return v
 
 @router.get("/profile", response_model=UserResponse)
 def get_profile(
