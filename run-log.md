@@ -147,3 +147,26 @@ Each entry is appended by the daily feedback pipeline task.
 **Test result:** PASSED (iteration 1):    Duration  5.15s (transform 189ms, setup 332ms, import 278ms, tests 32ms, environment 3.70s)
 **PR:** (none)
 **Errors:** (none)
+
+## Run — 2026-04-21 (automated)
+**Status:** completed
+**Feedback processed:** 15
+**Changes applied:**
+  - sidebar-overlaps-mobile: Sidebar takes up most of the screen on mobile
+  - remove-brain-icon-everywhere: Remove the brain icon from all screens
+  - stroop-answer-button-colors: Stroop answer buttons should display word text in randomised colors
+  - digit-span-staircase-mechanic: Digit Span should use a staircase procedure: increase on correct, hold on first error, decrease on second consecutive error
+  - card-memory-five-turns: Card Memory Game should have exactly 5 turns per session
+  - visual-categorisation-three-shorter-rounds: Visual Categorisation should have 3 rounds, each shorter than current
+  - digit-span-max-length-score-bug: Digit Span score shows max length as zero even when answers were correct
+  - nback-increase-max-level: N-Back should support up to 5-back
+**Skipped implementations (GitHub issues created):**
+  (none)
+**Issues created:**
+  - https://github.com/james-jxr/brain-training/issues/25
+  - https://github.com/james-jxr/brain-training/issues/26
+  - https://github.com/james-jxr/brain-training/issues/27
+**Spec version:** unchanged
+**Test result:** PASSED after isolation: 0 change(s) dropped, 8 applied:    Duration  2.47s (transform 233ms, setup 372ms, import 385ms, tests 39ms, environment 4.54s)
+**PR:** (none)
+**Errors:** (none)

@@ -1,12 +1,4 @@
-"""
-Tests for the adaptive baseline feature.
-
-Covers:
-  1. Pure algorithm: applyAdaptiveStep (2-up/1-down, floor, ceiling, convergence)
-  2. API: GET /api/adaptive-baseline/status
-  3. API: POST /api/adaptive-baseline/complete (happy path + error paths)
-  4. Smoke: first-login prompt flag, full run upsert, retake increments baseline_count
-"""
+"""\nTests for the adaptive baseline feature.\n\nCovers:\n  1. Pure algorithm: applyAdaptiveStep (2-up/1-down, floor, ceiling, convergence)\n  2. API: GET /api/adaptive-baseline/status\n  3. API: POST /api/adaptive-baseline/complete (happy path + error paths)\n  4. Smoke: first-login prompt flag, full run upsert, retake increments baseline_count\n"""
 import pytest
 from fastapi.testclient import TestClient
 from backend.main import app
@@ -27,7 +19,7 @@ def client(test_db):
         yield c
 
 
-def _register_and_token(client, email="user@example.com", username="user", password="pass123"):
+def _register_and_token(client, email="user@example.com", username="user", password="pass1234"):
     res = client.post("/api/auth/register", json={
         "email": email,
         "username": username,
