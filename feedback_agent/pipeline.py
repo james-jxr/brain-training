@@ -582,6 +582,82 @@ def run_pipeline():
         run_summary["changes_applied"] = applied
         run_summary["failed_implementations"] = failed_implementations
 
+        # ── 7b. Regression build (Stage 4) ───────────────────────────────────
+        print("\n[Step 7b] Running regression build...")
+        build_passed = False
+        build_output = ""
+        MAX_BUILD_ITERATIONS = 3
+
+        for build_iter in range(1, MAX_BUILD_ITERATIONS + 1):
+            build_result = subprocess.run(
+                ["npm", "run", "build"],
+                cwd=str(Path(APP_ROOT) / "frontend"),
+                capture_output=True, text=True, timeout=120,
+            )
+            build_output = _ANSI_RE.sub(
+                '', (build_result.stdout + build_result.stderr).strip()
+            )
+            if build_result.returncode == 0:
+                build_passed = True
+                print(f"  Build passed (iteration {build_iter})")
+                break
+            else:
+                print(f"  Build FAILED (iteration {build_iter}/{MAX_BUILD_ITERATIONS})")
+                if build_iter < MAX_BUILD_ITERATIONS:
+                    print("  Asking Claude to fix the build error...")
+                    # Ask Claude to fix only the changed files
+                    changed_src = "\n".join(
+                        f"### {p}\n```\n{c}\n```"
+                        for p, c in all_changed_files.items()
+                    )
+                    fix_prompt = (
+                        f"The frontend build failed with this error:\n\n```\n{build_output[-3000:]}\n```\n\n"
+                        f"The following files were changed in this pipeline run:\n\n{changed_src}\n\n"
+                        f"Fix only the changed files to resolve the build error. "
+                        f"Do not modify other files."
+                    )
+                    try:
+                        build_fix_client = anthropic.Anthropic()
+                        build_fix_msg = _with_retry(lambda: build_fix_client.messages.create(
+                            model="claude-sonnet-4-6",
+                            max_tokens=8192,
+                            messages=[{"role": "user", "content": fix_prompt}],
+                        ))
+                        fix_result = extract_json(build_fix_msg.content[0].text)
+                        fix_files = fix_result.get("files", {})
+                        for rel_path, content in fix_files.items():
+                            abs_path = Path(APP_ROOT) / rel_path
+                            abs_path.write_text(content)
+                            all_changed_files[rel_path] = content
+                            print(f"    Applied build fix: {rel_path}")
+                    except Exception as e:
+                        print(f"    [warn] build fix attempt failed: {e}")
+
+        if not build_passed:
+            issue_title = f"[pipeline] Build failed after {MAX_BUILD_ITERATIONS} attempts"
+            changed_list = "\n".join(f"- `{p}`" for p in all_changed_files)
+            issue_body = (
+                f"The nightly feedback pipeline could not fix a build failure after "
+                f"{MAX_BUILD_ITERATIONS} iterations.\n\n"
+                f"**Build error (last attempt):**\n```\n{build_output[-3000:]}\n```\n\n"
+                f"**Changed files:**\n{changed_list}\n\n"
+                f"These changes have not been committed. "
+                f"Please fix the build manually and re-run the pipeline."
+            )
+            if GITHUB_TOKEN and GITHUB_REPOSITORY:
+                from feedback_agent.github_issues import _get_repo
+                _gh_repo = _get_repo(GITHUB_TOKEN, GITHUB_REPOSITORY)
+                _gh_repo.create_issue(
+                    title=issue_title, body=issue_body,
+                    labels=["feedback-agent", "pipeline-failure"],
+                )
+            run_summary["status"] = "build_failed"
+            run_summary["errors"] = f"Build failed after {MAX_BUILD_ITERATIONS} attempts"
+            update_feedback_run(conn, run_id, {"status": "build_failed", "error": build_output[-2000:]})
+            _append_run_log(run_summary)
+            print(f"\n[ABORT] Build could not be fixed. No PR created.")
+            sys.exit(1)
+
         # ── 8. Update tests ───────────────────────────────────────────────────
         print("\n[Step 8] Updating tests to reflect code changes...")
         test_file_originals: dict = {}
