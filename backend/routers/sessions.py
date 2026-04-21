@@ -83,8 +83,8 @@ def log_exercise_result(
             progress.total_attempts += trials_presented
             progress.total_correct += trials_correct
         else:
-            progress.total_attempts += exercise_data.trials_presented
-            progress.total_correct += exercise_data.trials_correct
+            progress.total_attempts = (progress.total_attempts or 0) + exercise_data.trials_presented
+            progress.total_correct = (progress.total_correct or 0) + exercise_data.trials_correct
         db.commit()
 
     AdaptiveDifficultyService.update_difficulty(
