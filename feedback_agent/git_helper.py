@@ -8,7 +8,8 @@ from pathlib import Path
 def run(cmd: list, cwd: str = None) -> str:
     result = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd)
     if result.returncode != 0:
-        raise RuntimeError(f"Command failed: {' '.join(cmd)}\n{result.stderr}")
+        raise RuntimeError(f"Command failed: {' '.join(cmd)}
+{result.stderr}")
     return result.stdout.strip()
 
 
@@ -16,6 +17,9 @@ REPO_ROOT = str(Path(__file__).parent.parent.resolve())
 
 
 def create_branch(branch_name: str) -> str:
+    # Discard any uncommitted changes before switching (e.g. run-log.md from a prior retry)
+    run(["git", "reset", "--hard", "HEAD"], cwd=REPO_ROOT)
+    run(["git", "clean", "-fd", "--exclude=backend/.env"], cwd=REPO_ROOT)
     run(["git", "checkout", "main"], cwd=REPO_ROOT)
     run(["git", "pull", "origin", "main"], cwd=REPO_ROOT)
     run(["git", "checkout", "-b", branch_name], cwd=REPO_ROOT)
@@ -36,7 +40,6 @@ def push_branch(branch_name: str):
     run(["git", "push", "origin", branch_name], cwd=REPO_ROOT)
 
 
-
 def open_pr(branch_name: str, title: str, body: str) -> str:
     """Open a GitHub PR using the gh CLI. Returns the PR URL."""
     gh = shutil.which("gh") or "/opt/homebrew/bin/gh"
@@ -49,6 +52,8 @@ def open_pr(branch_name: str, title: str, body: str) -> str:
         capture_output=True, text=True, cwd=REPO_ROOT
     )
     if result.returncode != 0:
-        raise RuntimeError(f"gh pr create failed:\n{result.stderr}")
+        raise RuntimeError(f"gh pr create failed:
+{result.stderr}")
     # gh prints the PR URL as the last line
-    return result.stdout.strip().split("\n")[-1]
+    return result.stdout.strip().split("
+")[-1]
