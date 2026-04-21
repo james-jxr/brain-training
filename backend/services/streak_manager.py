@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from backend.models import Streak
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 class StreakManagerService:
     @staticmethod
@@ -18,16 +18,21 @@ class StreakManagerService:
     @staticmethod
     def update_streak(db: Session, user_id: int) -> Streak:
         streak = StreakManagerService.get_or_create_streak(db, user_id)
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         if streak.last_session_date is None:
             streak.current_streak = 1
         else:
-            time_since_last = now - streak.last_session_date
+            last_session = streak.last_session_date
+            if last_session.tzinfo is None:
+                last_session = last_session.replace(tzinfo=timezone.utc)
+            time_since_last = now - last_session
             hours_since = time_since_last.total_seconds() / 3600
 
             if hours_since > 36:
                 streak.current_streak = 1
+            elif last_session.date() == now.date():
+                pass
             else:
                 streak.current_streak += 1
 
@@ -49,8 +54,11 @@ class StreakManagerService:
         if streak.last_session_date is None:
             return 0
 
-        now = datetime.utcnow()
-        time_since_last = now - streak.last_session_date
+        now = datetime.now(timezone.utc)
+        last_session = streak.last_session_date
+        if last_session.tzinfo is None:
+            last_session = last_session.replace(tzinfo=timezone.utc)
+        time_since_last = now - last_session
         hours_since = time_since_last.total_seconds() / 3600
 
         if hours_since > 36:
