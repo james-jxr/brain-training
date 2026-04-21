@@ -147,3 +147,24 @@ Each entry is appended by the daily feedback pipeline task.
 **Test result:** PASSED (iteration 1):    Duration  5.15s (transform 189ms, setup 332ms, import 278ms, tests 32ms, environment 3.70s)
 **PR:** (none)
 **Errors:** (none)
+
+## Run — 2026-04-21 (automated)
+**Status:** completed
+**Feedback processed:** 15
+**Changes applied:**
+  - sidebar-overlaps-mobile: Sidebar takes up most of the screen on mobile
+  - remove-brain-icon-everywhere: Remove the brain icon from all screens
+  - stroop-answer-button-colors: Stroop answer buttons should show word text in randomized colors
+  - digit-span-progressive-length: Digit Span should start short, increase on correct, hold on first error, decrease on second consecutive error
+  - card-game-five-turns: Card Memory Game should have exactly 5 turns per session
+  - visual-categorisation-three-shorter-rounds: Visual Categorisation should have 3 rounds, each slightly shorter
+  - digit-span-max-length-shows-zero: Digit Span score shows max length as 0 even when user answered correctly
+  - nback-increase-max-to-5: N-Back should support up to 5-back
+**Skipped implementations (GitHub issues created):**
+  (none)
+**Issues created:**
+  (none)
+**Spec version:** v1.0
+**Test result:** PASSED (iteration 3):    Duration  2.25s (transform 332ms, setup 377ms, import 387ms, tests 41ms, environment 4.12s)
+**PR:** (none)
+**Errors:** (none)
