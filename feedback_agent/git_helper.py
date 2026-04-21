@@ -8,8 +8,7 @@ from pathlib import Path
 def run(cmd: list, cwd: str = None) -> str:
     result = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd)
     if result.returncode != 0:
-        raise RuntimeError(f"Command failed: {' '.join(cmd)}
-{result.stderr}")
+        raise RuntimeError(f"Command failed: {' '.join(cmd)}\n{result.stderr}")
     return result.stdout.strip()
 
 
@@ -52,8 +51,6 @@ def open_pr(branch_name: str, title: str, body: str) -> str:
         capture_output=True, text=True, cwd=REPO_ROOT
     )
     if result.returncode != 0:
-        raise RuntimeError(f"gh pr create failed:
-{result.stderr}")
+        raise RuntimeError(f"gh pr create failed:\n{result.stderr}")
     # gh prints the PR URL as the last line
-    return result.stdout.strip().split("
-")[-1]
+    return result.stdout.strip().split("\n")[-1]
