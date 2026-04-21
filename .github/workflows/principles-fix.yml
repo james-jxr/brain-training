@@ -1,0 +1,45 @@
+name: Principles Fix Pipeline
+
+# Triggered by Agent Central after a nightly audit finds high-severity issues.
+# Also runnable manually to apply pending fixes at any time.
+
+on:
+  repository_dispatch:
+    types: [run-principles-fix]
+  workflow_dispatch:
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write        # push branch
+      pull-requests: write   # open PR
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git identity
+        run: |
+          git config user.name  "principles-fix[bot]"
+          git config user.email "noreply@github.com"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r feedback_agent/requirements.txt
+
+      - name: Run principles fix
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN:       ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY:  ${{ github.repository }}
+          SUPABASE_URL:       ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python feedback_agent/principles_fix.py
