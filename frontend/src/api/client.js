@@ -11,7 +11,7 @@ const client = axios.create({
 });
 
 client.interceptors.request.use((config) => {
-  const token = localStorage.getItem('access_token');
+  const token = sessionStorage.getItem('access_token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -24,7 +24,7 @@ client.interceptors.response.use(
     const isAuthCheck = error.config?.url?.includes('/api/auth/me');
     const isPublicPage = ['/login', '/register', '/'].includes(window.location.pathname);
     if (error.response?.status === 401 && !isAuthCheck && !isPublicPage) {
-      localStorage.removeItem('access_token');
+      sessionStorage.removeItem('access_token');
       window.location.href = '/login';
     }
     return Promise.reject(error);
