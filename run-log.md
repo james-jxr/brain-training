@@ -168,3 +168,24 @@ Each entry is appended by the daily feedback pipeline task.
 **Test result:** PASSED (iteration 3):    Duration  2.25s (transform 332ms, setup 377ms, import 387ms, tests 41ms, environment 4.12s)
 **PR:** (none)
 **Errors:** (none)
+
+## Run — 2026-04-22 (automated)
+**Status:** completed
+**Feedback processed:** 1
+**Changes applied:**
+  - card-memory-difficulty-not-advancing: Card Memory Game not advancing difficulty despite perfect performance
+  - consistency-tracker-on-progress: Show a streak/consistency visual on the Progress page for the last two weeks
+  - per-game-result-charts-on-progress: Show per-game result charts on Progress page titled 'Recent performance'
+  - adaptive-difficulty-within-session: Show level-up message at end of session instead of mid-session difficulty adaptation
+  - dashboard-visual-monotony: Add background graphics and subtle design elements to the Dashboard
+  - showcase-games-on-landing: Show example games on the landing page before sign-up
+  - visual-categorisation-three-shorter-rounds: Change Visual Categorisation to 3 rounds of 5 trials each
+  - mindfulness-meditation-exercise: Add a standalone mindfulness/meditation exercise as a new 'Relaxation' domain
+**Skipped implementations (GitHub issues created):**
+  (none)
+**Issues created:**
+  (none)
+**Spec version:** v1.0
+**Test result:** PASSED (iteration 1):    Duration  2.52s (transform 346ms, setup 374ms, import 452ms, tests 40ms, environment 4.58s)
+**PR:** (none)
+**Errors:** (none)
