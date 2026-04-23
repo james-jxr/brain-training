@@ -83,7 +83,16 @@ def read_files(file_paths: list) -> dict:
 
 
 def write_files(file_map: dict):
-    """Write updated file contents to disk. Skips entries with null/non-string content."""
+    """Write updated file contents to disk. Skips entries with null/non-string content.
+
+    Handles the Supabase build_agent nested format where Claude returns:
+      {"summary": "...", "files": {"path/to/file": "content", ...}}
+    by extracting the inner "files" dict before writing.
+    """
+    if "files" in file_map and isinstance(file_map.get("files"), dict):
+        print(f"  [write_files] detected nested 'files' format — extracting inner dict")
+        file_map = file_map["files"]
+
     for rel_path, content in file_map.items():
         if not isinstance(content, str):
             print(f"  [warn] skipping {rel_path} — content is {type(content).__name__}, not str")
