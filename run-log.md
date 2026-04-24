@@ -189,3 +189,23 @@ Each entry is appended by the daily feedback pipeline task.
 **Test result:** PASSED (iteration 1):    Duration  2.52s (transform 346ms, setup 374ms, import 452ms, tests 40ms, environment 4.58s)
 **PR:** (none)
 **Errors:** (none)
+
+## Run — 2026-04-24 (automated)
+**Status:** completed
+**Feedback processed:** 0
+**Changes applied:**
+  - consistency-tracker-on-progress: Show a consistency/streak visual on the Progress page for the last two weeks
+  - per-game-result-charts-on-progress: Show per-game result charts on the Progress page
+  - adaptive-difficulty-within-session: Game difficulty should adapt during a session based on performance
+  - dashboard-visual-monotony: Dashboard looks boring — add background graphics or subtle design elements
+  - showcase-games-on-landing: Show example games on the landing/home page before sign-up
+  - visual-categorisation-three-shorter-rounds: Visual Categorisation should have 3 rounds, each slightly shorter than current
+  - mindfulness-meditation-exercise: Add a mindfulness or meditation exercise
+**Skipped implementations (GitHub issues created):**
+  (none)
+**Issues created:**
+  (none)
+**Spec version:** v1.0
+**Test result:** PASSED (iteration 1):    Duration  2.69s (transform 317ms, setup 366ms, import 527ms, tests 187ms, environment 5.33s)
+**PR:** (none)
+**Errors:** (none)

@@ -1,18 +1,21 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, desc
 from backend.models import DomainProgress
-from backend.services.adaptive_difficulty import AdaptiveDifficultyService
+from backend.services.adaptive_difficulty import AdaptiveDifficultyService, adjust_difficulty_in_session
 
 class SessionPlannerService:
     DOMAIN_EXERCISE_MAP = {
         "processing_speed": ["symbol_matching", "visual_categorisation"],
         "working_memory": ["n_back", "digit_span"],
-        "attention": ["go_no_go", "stroop"]
+        "attention": ["go_no_go", "stroop"],
+        "mindfulness": ["mindfulness"]
     }
 
     MINIMUM_ROUNDS = {
         "card_memory": 3
     }
+
+    NO_SCORING_EXERCISES = {"mindfulness"}
 
     @staticmethod
     def plan_session(db: Session, user_id: int):
@@ -39,13 +42,16 @@ class SessionPlannerService:
         other_domains = [d for d in domains if d != priority_domain]
         selected_domain_2 = other_domains[0] if other_domains else domains[0]
 
+        exercises = {
+            priority_domain: SessionPlannerService.DOMAIN_EXERCISE_MAP[priority_domain],
+            selected_domain_2: SessionPlannerService.DOMAIN_EXERCISE_MAP[selected_domain_2],
+            "mindfulness": SessionPlannerService.DOMAIN_EXERCISE_MAP["mindfulness"]
+        }
+
         return {
             "domain_1": priority_domain,
             "domain_2": selected_domain_2,
-            "exercises": {
-                priority_domain: SessionPlannerService.DOMAIN_EXERCISE_MAP[priority_domain],
-                selected_domain_2: SessionPlannerService.DOMAIN_EXERCISE_MAP[selected_domain_2]
-            }
+            "exercises": exercises
         }
 
     @staticmethod
@@ -60,3 +66,7 @@ class SessionPlannerService:
     def get_rounds_for_exercise(exercise_name: str) -> int:
         minimum = SessionPlannerService.MINIMUM_ROUNDS.get(exercise_name, 1)
         return max(minimum, 1)
+
+    @staticmethod
+    def is_no_scoring_exercise(exercise_name: str) -> bool:
+        return exercise_name in SessionPlannerService.NO_SCORING_EXERCISES

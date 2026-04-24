@@ -7,6 +7,7 @@ import DigitSpan from '../components/exercises/DigitSpan';
 import GoNoGo from '../components/exercises/GoNoGo';
 import Stroop from '../components/exercises/Stroop';
 import CardMemoryGame from '../components/exercises/CardMemoryGame';
+import Mindfulness from '../components/exercises/Mindfulness';
 import { useSession } from '../hooks/useSession';
 import { progressAPI, adaptiveBaselineAPI } from '../api/client';
 
@@ -48,6 +49,7 @@ const Session = () => {
   const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [difficulty, setDifficulty] = useState(1);
+  const [initialDifficultyLoaded, setInitialDifficultyLoaded] = useState(false);
 
   // Skill profile fetched once on mount: game_key → assessed_level (1|2|3)
   const [skillProfile, setSkillProfile] = useState({});
@@ -59,6 +61,7 @@ const Session = () => {
     { domain: 'attention',        type: 'go_no_go',              component: GoNoGo },
     { domain: 'attention',        type: 'stroop',                component: Stroop },
     { domain: 'episodic_memory',  type: 'card_memory',           component: CardMemoryGame },
+    { domain: 'mindfulness',      type: 'mindfulness',           component: Mindfulness, noScoring: true },
   ];
 
   // Fetch the user's baseline skill profile once when the session starts.
@@ -91,11 +94,23 @@ const Session = () => {
     return () => window.removeEventListener('keydown', handler, true);
   }, []);
 
-  // Load difficulty for the current exercise.
-  // Priority: baseline assessed level > domain progress level > default 1
+  // Load difficulty for the FIRST exercise only (index 0) or when no adaptive
+  // difficulty has been received yet from the backend.
+  // Subsequent exercises use the adjusted_difficulty returned by the backend.
   useEffect(() => {
+    if (initialDifficultyLoaded && currentExerciseIndex > 0) {
+      return;
+    }
+
+    const exercise = exercises[currentExerciseIndex];
+
+    // Mindfulness doesn't need difficulty
+    if (exercise.noScoring) {
+      setInitialDifficultyLoaded(true);
+      return;
+    }
+
     const loadDifficulty = async () => {
-      const exercise = exercises[currentExerciseIndex];
       const gameKey = EXERCISE_TYPE_TO_GAME_KEY[exercise.type];
 
       // 1. Try baseline assessed level first
@@ -103,6 +118,7 @@ const Session = () => {
         const baselineDifficulty = BASELINE_LEVEL_TO_DIFFICULTY[skillProfile[gameKey]];
         if (baselineDifficulty != null) {
           setDifficulty(baselineDifficulty);
+          setInitialDifficultyLoaded(true);
           return;
         }
       }
@@ -114,22 +130,35 @@ const Session = () => {
       } catch {
         setDifficulty(1);
       }
+      setInitialDifficultyLoaded(true);
     };
 
     loadDifficulty();
   }, [currentExerciseIndex, skillProfile]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleExerciseComplete = async (result) => {
+    const exercise = exercises[currentExerciseIndex];
+
+    // Mindfulness: no scoring, just advance
+    if (exercise.noScoring) {
+      if (currentExerciseIndex < exercises.length - 1) {
+        setCurrentExerciseIndex(currentExerciseIndex + 1);
+      } else {
+        await completeSession(sessionId);
+        navigate(`/session/${sessionId}/summary`);
+      }
+      return;
+    }
+
     setSubmitting(true);
     try {
-      const exercise = exercises[currentExerciseIndex];
       const payload = {
         domain: exercise.domain,
         exercise_type: exercise.type,
       };
 
       if (exercise.type === 'card_memory') {
-        payload.difficulty = result.difficulty;
+        payload.difficulty = String(difficulty);
         payload.card_count = result.card_count || 4;
         payload.correct = result.correct;
         payload.response_time_ms = result.response_time_ms;
@@ -141,9 +170,15 @@ const Session = () => {
         payload.trials_presented = result.trials_presented;
         payload.trials_correct = result.trials_correct;
         payload.avg_response_ms = result.avg_response_ms;
+        payload.difficulty = String(difficulty);
       }
 
-      await logExerciseResult(sessionId, payload);
+      const responseData = await logExerciseResult(sessionId, payload);
+
+      // Use the backend's adjusted_difficulty for the next exercise
+      if (responseData && responseData.adjusted_difficulty != null) {
+        setDifficulty(responseData.adjusted_difficulty);
+      }
 
       if (currentExerciseIndex < exercises.length - 1) {
         setCurrentExerciseIndex(currentExerciseIndex + 1);
@@ -170,8 +205,9 @@ const Session = () => {
     return <Card>Session complete!</Card>;
   }
 
-  const CurrentExercise = exercises[currentExerciseIndex].component;
-  const exerciseLabel = exercises[currentExerciseIndex].type.replace('_', ' ').toUpperCase();
+  const currentExercise = exercises[currentExerciseIndex];
+  const CurrentExercise = currentExercise.component;
+  const exerciseLabel = currentExercise.type.replace('_', ' ').toUpperCase();
 
   return (
     <div style={{
@@ -193,9 +229,11 @@ const Session = () => {
             </p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
-            <div style={{ fontSize: 'var(--text-body-sm)', color: 'var(--color-text-secondary)' }}>
-              Difficulty: <strong>{difficulty}</strong>/10
-            </div>
+            {!currentExercise.noScoring && (
+              <div style={{ fontSize: 'var(--text-body-sm)', color: 'var(--color-text-secondary)' }}>
+                Difficulty: <strong>{difficulty}</strong>/10
+              </div>
+            )}
             <button
               onClick={() => navigate('/dashboard')}
               style={{
@@ -214,10 +252,16 @@ const Session = () => {
         </div>
 
         {!submitting ? (
-          <CurrentExercise
-            difficulty={difficulty}
-            onComplete={handleExerciseComplete}
-          />
+          currentExercise.noScoring ? (
+            <CurrentExercise
+              onComplete={handleExerciseComplete}
+            />
+          ) : (
+            <CurrentExercise
+              difficulty={difficulty}
+              onComplete={handleExerciseComplete}
+            />
+          )
         ) : (
           <Card>
             <p>Saving results...</p>
