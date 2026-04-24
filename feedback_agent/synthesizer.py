@@ -63,7 +63,7 @@ def build_file_tree() -> str:
 
 def synthesise(feedback_rows: list, resolved_items: list | None = None) -> list:
     """Call the feedback_agent to synthesise feedback rows into structured change items."""
-    if not feedback_rows:
+    if not feedback_rows and not resolved_items:
         return []
 
     feedback_text = "\n".join(
