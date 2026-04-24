@@ -4,6 +4,16 @@ import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import { Zap, TrendingUp, Brain } from 'lucide-react';
 
+const GAMES = [
+  { name: 'N-Back', description: 'Working Memory', emoji: '🧠' },
+  { name: 'Stroop', description: 'Attention & Inhibition', emoji: '🎨' },
+  { name: 'Go/No-Go', description: 'Response Inhibition', emoji: '🚦' },
+  { name: 'Digit Span', description: 'Short-Term Memory', emoji: '🔢' },
+  { name: 'Card Memory', description: 'Visual Memory', emoji: '🃏' },
+  { name: 'Symbol Matching', description: 'Processing Speed', emoji: '⚡' },
+  { name: 'Visual Categorisation', description: 'Cognitive Flexibility', emoji: '👁️' },
+];
+
 const Landing = () => {
   return (
     <div style={{
@@ -78,6 +88,45 @@ const Landing = () => {
               Get a comprehensive brain health assessment combining cognitive performance with lifestyle factors.
             </p>
           </Card>
+        </section>
+
+        <section style={{ marginBottom: 'var(--space-16)' }}>
+          <h2 style={{
+            textAlign: 'center',
+            marginBottom: 'var(--space-8)',
+            fontSize: 'var(--text-heading-lg)',
+          }}>
+            Our Exercises
+          </h2>
+          <div className="landing-games-grid">
+            {GAMES.map((game) => (
+              <Card key={game.name}>
+                <div style={{
+                  fontSize: '2.5rem',
+                  textAlign: 'center',
+                  marginBottom: 'var(--space-3)',
+                }}>
+                  {game.emoji}
+                </div>
+                <h3 style={{
+                  textAlign: 'center',
+                  marginBottom: 'var(--space-2)',
+                  fontSize: 'var(--text-body-lg)',
+                  fontWeight: 'var(--weight-semibold)',
+                }}>
+                  {game.name}
+                </h3>
+                <p style={{
+                  textAlign: 'center',
+                  fontSize: 'var(--text-body-sm)',
+                  color: 'var(--color-text-secondary)',
+                  margin: 0,
+                }}>
+                  {game.description}
+                </p>
+              </Card>
+            ))}
+          </div>
         </section>
 
         <section style={{

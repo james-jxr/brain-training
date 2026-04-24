@@ -3,10 +3,25 @@ import Sidebar from '../components/nav/Sidebar';
 import Card from '../components/ui/Card';
 import TrendChart from '../components/charts/TrendChart';
 import DomainScoreCard from '../components/charts/DomainScoreCard';
+import StreakTracker from '../components/progress/StreakTracker';
 import { useDashboard } from '../hooks/useDashboard';
+import { useStreakData } from '../hooks/useStreakData';
+import { useGameHistory } from '../hooks/useGameHistory';
+
+const GAME_TYPE_LABELS = {
+  NBack: 'N-Back',
+  Stroop: 'Stroop',
+  GoNoGo: 'Go / No-Go',
+  DigitSpan: 'Digit Span',
+  CardMemory: 'Card Memory',
+  SymbolMatching: 'Symbol Matching',
+  VisualCategorisation: 'Visual Categorisation',
+};
 
 const Progress = () => {
   const { summary, loading, error } = useDashboard();
+  const { streakData, loading: streakLoading, error: streakError } = useStreakData();
+  const { gameHistory, loading: gameLoading, error: gameError } = useGameHistory();
   const [selectedDomain, setSelectedDomain] = useState('processing_speed');
 
   if (loading) {
@@ -16,6 +31,8 @@ const Progress = () => {
   if (error) {
     return <div style={{ padding: 'var(--space-4)', color: 'var(--color-error)' }}>Error: {error}</div>;
   }
+
+  const gameTypes = gameHistory ? Object.keys(gameHistory) : [];
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
@@ -27,6 +44,10 @@ const Progress = () => {
       }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
           <h1 style={{ marginBottom: 'var(--space-8)' }}>Progress Tracking</h1>
+
+          {!streakLoading && !streakError && streakData && (
+            <StreakTracker streakData={streakData} />
+          )}
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 'var(--space-6)', marginBottom: 'var(--space-8)' }}>
             {summary && summary.domains && summary.domains.map((domain) => (
@@ -66,6 +87,36 @@ const Progress = () => {
           </Card>
 
           <TrendChart domain={selectedDomain} />
+
+          <div style={{ marginTop: 'var(--space-8)' }}>
+            <h2 style={{ marginBottom: 'var(--space-6)' }}>Game Results</h2>
+            {gameLoading && (
+              <div style={{ padding: 'var(--space-4)' }}>Loading game history...</div>
+            )}
+            {gameError && (
+              <div style={{ padding: 'var(--space-4)', color: 'var(--color-error)' }}>Error loading game history: {gameError}</div>
+            )}
+            {!gameLoading && !gameError && gameTypes.length === 0 && (
+              <Card>
+                <p>No game results yet. Complete some exercises to see your progress here.</p>
+              </Card>
+            )}
+            {!gameLoading && !gameError && gameTypes.length > 0 && (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+                gap: 'var(--space-6)',
+              }}>
+                {gameTypes.map((gameType) => (
+                  <TrendChart
+                    key={gameType}
+                    title={GAME_TYPE_LABELS[gameType] || gameType}
+                    data={gameHistory[gameType]}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </main>
     </div>

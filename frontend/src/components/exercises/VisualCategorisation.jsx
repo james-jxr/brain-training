@@ -11,10 +11,10 @@ const FILLS   = ['solid', 'outline'];
 
 const STUDY_PER_GROUP = 3;
 const TOTAL_TRIALS    = 12;
+const NUM_ROUNDS      = 3;
+const TRIALS_PER_ROUND = Math.round(TOTAL_TRIALS / 4);
 
 // ─── Classification rules ────────────────────────────────────────────────────
-// Each rule defines which shapes go in Group A vs B.
-// The user has to infer the rule from examples.
 const RULES = {
   easy: [
     { id: 'color',  fn: s => s.color === COLORS[0] ? 'A' : 'B' },
@@ -64,6 +64,14 @@ function shuffle(arr) {
   return a;
 }
 
+function buildRoundTrials(ruleFn, trialsPerRound) {
+  const half = Math.ceil(trialsPerRound / 2);
+  const rest = trialsPerRound - half;
+  const as = makeShapes(ruleFn, 'A', half);
+  const bs = makeShapes(ruleFn, 'B', rest);
+  return shuffle([...as, ...bs]);
+}
+
 // ─── SVG shape renderer ───────────────────────────────────────────────────────
 function ShapeIcon({ shape, color, size, fill }) {
   const dim  = size === 'large' ? 52 : 32;
@@ -94,27 +102,36 @@ function ShapeIcon({ shape, color, size, fill }) {
 const VisualCategorisation = ({ difficulty, onComplete }) => {
   const tier = difficulty <= 3 ? 'easy' : difficulty <= 6 ? 'medium' : 'hard';
 
-  const [rule]      = useState(() => pickRandom(RULES[tier]));
-  const [trialList] = useState(() => {
-    const half = TOTAL_TRIALS / 2;
-    const as   = makeShapes(rule.fn, 'A', half);
-    const bs   = makeShapes(rule.fn, 'B', half);
-    return shuffle([...as, ...bs]);
+  const [rule] = useState(() => pickRandom(RULES[tier]));
+
+  const [allRoundTrials] = useState(() => {
+    const rounds = [];
+    for (let r = 0; r < NUM_ROUNDS; r++) {
+      rounds.push(buildRoundTrials(rule.fn, TRIALS_PER_ROUND));
+    }
+    return rounds;
   });
 
-  // Re-derive study examples using the SAME rule as trials
   const [examplesA] = useState(() => makeShapes(rule.fn, 'A', STUDY_PER_GROUP));
   const [examplesB] = useState(() => makeShapes(rule.fn, 'B', STUDY_PER_GROUP));
 
-  const [phase,    setPhase]    = useState('study'); // 'study' | 'sort'
-  const [idx,      setIdx]      = useState(0);
-  const [feedback, setFeedback] = useState(null);    // null | 'correct' | 'wrong'
+  // phase: 'study' | 'sort' | 'interstitial'
+  const [phase,    setPhase]    = useState('study');
+  const [round,    setRound]    = useState(0); // 0-indexed current round
+  const [idx,      setIdx]      = useState(0); // trial index within current round
+  const [feedback, setFeedback] = useState(null);
 
   const correctRef  = useRef(0);
+  const totalTrialsRef = useRef(0);
   const startRef    = useRef(null);
   const timesRef    = useRef([]);
 
   const handleStart = () => {
+    startRef.current = Date.now();
+    setPhase('sort');
+  };
+
+  const handleContinueRound = () => {
     startRef.current = Date.now();
     setPhase('sort');
   };
@@ -126,29 +143,40 @@ const VisualCategorisation = ({ difficulty, onComplete }) => {
     timesRef.current.push(rt);
     startRef.current = Date.now();
 
-    const shape    = trialList[idx];
+    const currentTrials = allRoundTrials[round];
+    const shape    = currentTrials[idx];
     const expected = rule.fn(shape);
     const ok       = group === expected;
 
     if (ok) correctRef.current += 1;
+    totalTrialsRef.current += 1;
     setFeedback(ok ? 'correct' : 'wrong');
 
     setTimeout(() => {
       setFeedback(null);
-      if (idx + 1 >= trialList.length) {
-        const avgMs = timesRef.current.length
-          ? Math.round(timesRef.current.reduce((a, b) => a + b, 0) / timesRef.current.length)
-          : 0;
-        onComplete({
-          trials_presented: trialList.length,
-          trials_correct:   correctRef.current,
-          avg_response_ms:  avgMs,
-        });
+      const isLastTrialInRound = idx + 1 >= currentTrials.length;
+
+      if (isLastTrialInRound) {
+        const isLastRound = round + 1 >= NUM_ROUNDS;
+        if (isLastRound) {
+          const avgMs = timesRef.current.length
+            ? Math.round(timesRef.current.reduce((a, b) => a + b, 0) / timesRef.current.length)
+            : 0;
+          onComplete({
+            trials_presented: totalTrialsRef.current,
+            trials_correct:   correctRef.current,
+            avg_response_ms:  avgMs,
+          });
+        } else {
+          setRound(r => r + 1);
+          setIdx(0);
+          setPhase('interstitial');
+        }
       } else {
         setIdx(i => i + 1);
       }
     }, 500);
-  }, [feedback, idx, trialList, rule, onComplete]);
+  }, [feedback, idx, round, allRoundTrials, rule, onComplete]);
 
   // ── Study phase ──────────────────────────────────────────────────────────────
   if (phase === 'study') {
@@ -184,16 +212,65 @@ const VisualCategorisation = ({ difficulty, onComplete }) => {
     );
   }
 
+  // ── Interstitial phase ───────────────────────────────────────────────────────
+  if (phase === 'interstitial') {
+    return (
+      <Card>
+        <div style={{
+          textAlign: 'center',
+          padding: 'var(--space-8) 0',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 'var(--space-4)',
+        }}>
+          <p style={{
+            fontSize: 'var(--text-body-sm)',
+            color: 'var(--color-text-secondary)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+            fontWeight: 600,
+          }}>
+            Round complete
+          </p>
+          <h2 style={{ margin: 0 }}>
+            Round {round + 1} of {NUM_ROUNDS}
+          </h2>
+          <p style={{
+            fontSize: 'var(--text-body-sm)',
+            color: 'var(--color-text-secondary)',
+          }}>
+            {correctRef.current} correct so far
+          </p>
+          <Button onClick={handleContinueRound} variant="primary" style={{ marginTop: 'var(--space-4)', minWidth: 160 }}>
+            Continue
+          </Button>
+        </div>
+      </Card>
+    );
+  }
+
   // ── Sort phase ───────────────────────────────────────────────────────────────
-  const current = trialList[idx];
+  const currentTrials = allRoundTrials[round];
+  const current = currentTrials[idx];
 
   return (
     <Card>
       <div style={{ marginBottom: 'var(--space-4)' }}>
-        <ProgressBar value={idx} max={trialList.length} />
-        <p style={{ fontSize: 'var(--text-body-sm)', color: 'var(--color-text-secondary)', marginTop: 'var(--space-1)', textAlign: 'right' }}>
-          {idx + 1} / {trialList.length}
-        </p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
+          <p style={{
+            fontSize: 'var(--text-body-sm)',
+            color: 'var(--color-text-secondary)',
+            fontWeight: 600,
+            margin: 0,
+          }}>
+            Round {round + 1}/{NUM_ROUNDS}
+          </p>
+          <p style={{ fontSize: 'var(--text-body-sm)', color: 'var(--color-text-secondary)', margin: 0 }}>
+            {idx + 1} / {currentTrials.length}
+          </p>
+        </div>
+        <ProgressBar value={idx} max={currentTrials.length} />
       </div>
 
       <div style={{ textAlign: 'center', padding: 'var(--space-6) 0' }}>

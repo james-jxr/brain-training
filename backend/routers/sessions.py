@@ -6,6 +6,7 @@ from backend.models import User, Session as DBSession, ExerciseAttempt, DomainPr
 from backend.schemas import SessionCreate, SessionResponse, ExerciseAttemptCreate, ExerciseAttemptResponse
 from backend.security import get_current_user
 from backend.services import AdaptiveDifficultyService, StreakManagerService, SessionPlannerService
+from backend.services.adaptive_difficulty import adjust_difficulty_in_session
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 
@@ -94,7 +95,22 @@ def log_exercise_result(
         accuracy_score
     )
 
-    return ExerciseAttemptResponse.model_validate(attempt)
+    # Compute in-session adjusted difficulty using the staircase rule.
+    # Use the difficulty that was sent with this exercise as the current level.
+    current_difficulty_int = 1
+    if exercise_data.difficulty is not None:
+        try:
+            current_difficulty_int = int(exercise_data.difficulty)
+        except (ValueError, TypeError):
+            current_difficulty_int = 1
+    adjusted_difficulty = adjust_difficulty_in_session(current_difficulty_int, accuracy_score)
+
+    response = ExerciseAttemptResponse.model_validate(attempt)
+    return {
+        **response.model_dump(),
+        "accuracy_score": round(accuracy_score, 2),
+        "adjusted_difficulty": adjusted_difficulty
+    }
 
 @router.post("/{session_id}/complete")
 def complete_session(

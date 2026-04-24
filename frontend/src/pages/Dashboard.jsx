@@ -27,6 +27,50 @@ const isTextInputFocused = () => {
   return false;
 };
 
+const DecorativeSVG = () => (
+  <svg
+    className="dashboard-hero-decoration"
+    width="320"
+    height="320"
+    viewBox="0 0 320 320"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    aria-hidden="true"
+  >
+    <circle cx="160" cy="160" r="120" stroke="currentColor" strokeWidth="0.5" />
+    <circle cx="160" cy="160" r="80" stroke="currentColor" strokeWidth="0.5" />
+    <circle cx="160" cy="160" r="40" stroke="currentColor" strokeWidth="0.5" />
+    <circle cx="160" cy="80" r="6" fill="currentColor" />
+    <circle cx="220" cy="120" r="4" fill="currentColor" />
+    <circle cx="240" cy="180" r="5" fill="currentColor" />
+    <circle cx="200" cy="240" r="4" fill="currentColor" />
+    <circle cx="120" cy="240" r="5" fill="currentColor" />
+    <circle cx="80" cy="180" r="4" fill="currentColor" />
+    <circle cx="100" cy="120" r="6" fill="currentColor" />
+    <circle cx="160" cy="160" r="5" fill="currentColor" />
+    <line x1="160" y1="80" x2="220" y2="120" stroke="currentColor" strokeWidth="0.5" />
+    <line x1="220" y1="120" x2="240" y2="180" stroke="currentColor" strokeWidth="0.5" />
+    <line x1="240" y1="180" x2="200" y2="240" stroke="currentColor" strokeWidth="0.5" />
+    <line x1="200" y1="240" x2="120" y2="240" stroke="currentColor" strokeWidth="0.5" />
+    <line x1="120" y1="240" x2="80" y2="180" stroke="currentColor" strokeWidth="0.5" />
+    <line x1="80" y1="180" x2="100" y2="120" stroke="currentColor" strokeWidth="0.5" />
+    <line x1="100" y1="120" x2="160" y2="80" stroke="currentColor" strokeWidth="0.5" />
+    <line x1="160" y1="80" x2="160" y2="160" stroke="currentColor" strokeWidth="0.5" />
+    <line x1="220" y1="120" x2="160" y2="160" stroke="currentColor" strokeWidth="0.5" />
+    <line x1="240" y1="180" x2="160" y2="160" stroke="currentColor" strokeWidth="0.5" />
+    <line x1="200" y1="240" x2="160" y2="160" stroke="currentColor" strokeWidth="0.5" />
+    <line x1="120" y1="240" x2="160" y2="160" stroke="currentColor" strokeWidth="0.5" />
+    <line x1="80" y1="180" x2="160" y2="160" stroke="currentColor" strokeWidth="0.5" />
+    <line x1="100" y1="120" x2="160" y2="160" stroke="currentColor" strokeWidth="0.5" />
+    <circle cx="260" cy="60" r="3" fill="currentColor" />
+    <circle cx="280" cy="100" r="2" fill="currentColor" />
+    <circle cx="60" cy="260" r="3" fill="currentColor" />
+    <circle cx="40" cy="220" r="2" fill="currentColor" />
+    <circle cx="290" cy="250" r="2" fill="currentColor" />
+    <circle cx="50" cy="80" r="2" fill="currentColor" />
+  </svg>
+);
+
 const Dashboard = () => {
   const navigate = useNavigate();
   const { summary, brainHealth, streak, loading, error } = useDashboard();
@@ -90,46 +134,49 @@ const Dashboard = () => {
   return (
     <div className="dashboard-layout">
       <Sidebar />
-      <main className="dashboard-main">
+      <main className="dashboard-main dashboard-main--decorated">
         <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-          <div className="dashboard-header">
-            <h1>Dashboard</h1>
-            {streak && (
-              <div className="streak-badge">
-                <Flame size={20} />
-                <span>{streak.current_streak} day streak</span>
-              </div>
+          <div className="dashboard-hero-area">
+            <DecorativeSVG />
+            <div className="dashboard-header">
+              <h1>Dashboard</h1>
+              {streak && (
+                <div className="streak-badge">
+                  <Flame size={20} />
+                  <span>{streak.current_streak} day streak</span>
+                </div>
+              )}
+            </div>
+
+            {/* Baseline prompt — shown on first login until dismissed or completed */}
+            {showBaselinePrompt && (
+              <BaselinePrompt onDismiss={() => setBaselinePromptDismissed(true)} />
             )}
-          </div>
 
-          {/* Baseline prompt — shown on first login until dismissed or completed */}
-          {showBaselinePrompt && (
-            <BaselinePrompt onDismiss={() => setBaselinePromptDismissed(true)} />
-          )}
+            <div className="dashboard-grid-cards">
+              <Card style={{ gridColumn: 'span 1' }} className="card--primary">
+                <h2 style={{ marginBottom: 'var(--space-4)' }}>Ready to Train?</h2>
+                <p style={{ marginBottom: 'var(--space-4)', color: 'var(--color-text-secondary)' }}>
+                  Start a new session to exercise your cognitive abilities.
+                </p>
+                <Button
+                  onClick={handleStartSession}
+                  variant="primary"
+                  disabled={sessionLoading}
+                  style={{ width: '100%' }}
+                >
+                  {sessionLoading ? 'Starting...' : 'Start Session'}
+                </Button>
+              </Card>
 
-          <div className="dashboard-grid-cards">
-            <Card style={{ gridColumn: 'span 1' }}>
-              <h2 style={{ marginBottom: 'var(--space-4)' }}>Ready to Train?</h2>
-              <p style={{ marginBottom: 'var(--space-4)', color: 'var(--color-text-secondary)' }}>
-                Start a new session to exercise your cognitive abilities.
-              </p>
-              <Button
-                onClick={handleStartSession}
-                variant="primary"
-                disabled={sessionLoading}
-                style={{ width: '100%' }}
-              >
-                {sessionLoading ? 'Starting...' : 'Start Session'}
-              </Button>
-            </Card>
-
-            {brainHealth && (
-              <BrainHealthGauge
-                score={brainHealth.brain_health_score}
-                domainAverage={brainHealth.domain_average}
-                lifestyleScore={brainHealth.lifestyle_score}
-              />
-            )}
+              {brainHealth && (
+                <BrainHealthGauge
+                  score={brainHealth.brain_health_score}
+                  domainAverage={brainHealth.domain_average}
+                  lifestyleScore={brainHealth.lifestyle_score}
+                />
+              )}
+            </div>
           </div>
 
           {/* Practice Games */}

@@ -1,0 +1,224 @@
+/* ===== Mindfulness Exercise ===== */
+
+.mindfulness-intro,
+.mindfulness-complete {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-6) 0;
+}
+
+.mindfulness-intro-icon {
+  margin-bottom: var(--space-4);
+}
+
+.mindfulness-breathing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-4) 0;
+}
+
+/* ===== Breathing Circle ===== */
+
+.mindfulness-circle-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 200px;
+  height: 200px;
+  margin: 0 auto var(--space-6);
+}
+
+@media (min-width: 768px) {
+  .mindfulness-circle-container {
+    width: 260px;
+    height: 260px;
+  }
+}
+
+.mindfulness-circle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background-color: var(--color-accent-muted);
+  transition: width 4s ease-in-out, height 4s ease-in-out;
+  width: 80px;
+  height: 80px;
+}
+
+.mindfulness-circle-inner {
+  width: 40%;
+  height: 40%;
+  border-radius: var(--radius-full);
+  background-color: var(--color-accent);
+  opacity: 0.6;
+}
+
+.mindfulness-circle--inhale {
+  animation: mindfulness-inhale 4s ease-in-out forwards;
+}
+
+.mindfulness-circle--hold {
+  width: 180px;
+  height: 180px;
+  animation: mindfulness-hold 4s ease-in-out forwards;
+}
+
+.mindfulness-circle--exhale {
+  animation: mindfulness-exhale 4s ease-in-out forwards;
+}
+
+@keyframes mindfulness-inhale {
+  from {
+    width: 80px;
+    height: 80px;
+  }
+  to {
+    width: 180px;
+    height: 180px;
+  }
+}
+
+@keyframes mindfulness-hold {
+  from {
+    width: 180px;
+    height: 180px;
+  }
+  to {
+    width: 180px;
+    height: 180px;
+  }
+}
+
+@keyframes mindfulness-exhale {
+  from {
+    width: 180px;
+    height: 180px;
+  }
+  to {
+    width: 80px;
+    height: 80px;
+  }
+}
+
+@media (min-width: 768px) {
+  .mindfulness-circle--hold {
+    width: 220px;
+    height: 220px;
+  }
+
+  @keyframes mindfulness-inhale {
+    from {
+      width: 100px;
+      height: 100px;
+    }
+    to {
+      width: 220px;
+      height: 220px;
+    }
+  }
+
+  @keyframes mindfulness-hold {
+    from {
+      width: 220px;
+      height: 220px;
+    }
+    to {
+      width: 220px;
+      height: 220px;
+    }
+  }
+
+  @keyframes mindfulness-exhale {
+    from {
+      width: 220px;
+      height: 220px;
+    }
+    to {
+      width: 100px;
+      height: 100px;
+    }
+  }
+}
+
+/* ===== Text Cue ===== */
+
+.mindfulness-cue {
+  font-size: var(--text-heading-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-primary);
+  margin: 0;
+  text-align: center;
+}
+
+/* ===== Completion ===== */
+
+.mindfulness-complete-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-full);
+  background-color: var(--color-success-muted);
+  color: var(--color-success);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  font-weight: var(--weight-bold);
+  margin-bottom: var(--space-4);
+}
+
+/* ===== Rating ===== */
+
+.mindfulness-rating {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.mindfulness-rating-buttons {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.mindfulness-rating-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-full);
+  border: var(--border-default);
+  background-color: var(--color-bg-sunken);
+  color: var(--color-text-primary);
+  font-size: var(--text-body);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+  transition: var(--transition-default);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mindfulness-rating-btn:hover {
+  background-color: var(--color-accent-muted);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.mindfulness-rating-btn--selected {
+  background-color: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-text-inverse);
+}
+
+.mindfulness-rating-btn--selected:hover {
+  background-color: var(--color-accent-hover);
+  color: var(--color-text-inverse);
+}
+
+.mindfulness-rating-labels {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 236px;
+}

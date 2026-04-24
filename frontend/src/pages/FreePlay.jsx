@@ -7,6 +7,7 @@ import DigitSpan from '../components/exercises/DigitSpan';
 import GoNoGo from '../components/exercises/GoNoGo';
 import Stroop from '../components/exercises/Stroop';
 import CardMemoryGame from '../components/exercises/CardMemoryGame';
+import Mindfulness from '../components/exercises/Mindfulness';
 import { useSession } from '../hooks/useSession';
 import { progressAPI, adaptiveBaselineAPI } from '../api/client';
 
@@ -17,6 +18,7 @@ const GAME_CONFIG = {
   go_no_go:              { label: 'Go / No-Go',             domain: 'attention',        component: GoNoGo },
   stroop:                { label: 'Stroop',                 domain: 'attention',        component: Stroop },
   card_memory:           { label: 'Card Memory',            domain: 'episodic_memory',  component: CardMemoryGame },
+  mindfulness:           { label: 'Guided Breathing',       domain: 'mindfulness',      component: Mindfulness, noScoring: true },
 };
 
 const GAME_KEY_MAP = {
@@ -44,6 +46,12 @@ const FreePlay = () => {
 
   useEffect(() => {
     if (!config) return;
+
+    // Mindfulness doesn't need session/difficulty setup
+    if (config.noScoring) {
+      setReady(true);
+      return;
+    }
 
     const init = async () => {
       // Start a session for this domain
@@ -78,6 +86,12 @@ const FreePlay = () => {
   }, [gameKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleComplete = async (result) => {
+    // Mindfulness: no scoring needed, just navigate back
+    if (config && config.noScoring) {
+      navigate('/dashboard');
+      return;
+    }
+
     if (!sessionId) return;
     setSubmitting(true);
     try {
@@ -138,9 +152,15 @@ const FreePlay = () => {
         }}>
           <div>
             <h1>{config.label}</h1>
-            <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-body-sm)' }}>
-              Free play · Difficulty {difficulty}/10
-            </p>
+            {config.noScoring ? (
+              <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-body-sm)' }}>
+                Free play · Mindfulness
+              </p>
+            ) : (
+              <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-body-sm)' }}>
+                Free play · Difficulty {difficulty}/10
+              </p>
+            )}
           </div>
           <button
             onClick={() => navigate('/dashboard')}
@@ -160,6 +180,8 @@ const FreePlay = () => {
 
         {submitting ? (
           <Card><p>Saving results...</p></Card>
+        ) : config.noScoring ? (
+          <GameComponent onComplete={handleComplete} />
         ) : (
           <GameComponent difficulty={difficulty} onComplete={handleComplete} />
         )}
