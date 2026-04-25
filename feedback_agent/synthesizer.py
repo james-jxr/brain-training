@@ -40,10 +40,14 @@ def build_file_tree() -> str:
     return "\n".join(sorted(paths))
 
 
-def synthesise(feedback_rows: list, resolved_items: list | None = None) -> list:
-    """Call Claude to synthesise feedback rows into structured change items."""
+def synthesise(feedback_rows: list, resolved_items: list | None = None) -> tuple[list, dict]:
+    """
+    Call Claude to synthesise feedback rows into structured change items.
+    Returns (items, usage) where usage = {"input_tokens": N, "output_tokens": N}.
+    Loads prompt from Agent Central Supabase; falls back to local synthesis.md.
+    """
     if not feedback_rows:
-        return []
+        return [], {}
 
     feedback_text = "\n".join(
         f"[{row['page_context']}] {row['feedback_text']}"
@@ -59,7 +63,11 @@ def synthesise(feedback_rows: list, resolved_items: list | None = None) -> list:
             lines.append(f"- [{item['id']}] {item['title']}: {item.get('decision', '(no decision comment)')}")
         resolved_text = "\n".join(lines)
 
-    prompt = (load_prompt("synthesis")
+    # Load prompt from Agent Central (or local fallback)
+    from feedback_agent.agent_loader import get_system_prompt
+    template = get_system_prompt("feedback_synthesis_agent") or load_prompt("synthesis")
+
+    prompt = (template
               .replace("{file_tree}", file_tree)
               .replace("{resolved_items}", resolved_text or "(none)")
               .replace("{feedback_text}", feedback_text))
@@ -78,4 +86,8 @@ def synthesise(feedback_rows: list, resolved_items: list | None = None) -> list:
             raw = raw[4:]
     raw = raw.strip()
 
-    return json.loads(raw)
+    usage = {
+        "input_tokens": message.usage.input_tokens,
+        "output_tokens": message.usage.output_tokens,
+    }
+    return json.loads(raw), usage
