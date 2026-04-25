@@ -7,17 +7,19 @@ Nightly autonomous pipeline:
   2.  Check GitHub for resolved design items (ready-to-implement label)
   3.  Synthesise feedback → implementable + non-implementable change items
   4.  Create GitHub Issues for non-implementable items (idempotent)
-  5.  Filter items to those that are autonomously implementable
-  6.  Create a feature branch
-  7.  Implement each change (write source files to disk)
-  8.  Update test files to stay in sync with code changes
-  9.  Run full test suite — auto-fix failures up to 3 times
-  10. Update spec.md
-  11. Append to run-log.md
-  12. Commit everything + push branch
-  13. Open PR
-  14. Close resolved GitHub issues that were implemented
-  15. Mark feedback entries as processed
+  5.  Design agent reviews all open needs-decision issues against spec
+  6.  Filter items to those that are autonomously implementable
+  7.  Create a feature branch
+  8.  Implement each change (write source files to disk)
+  9.  Update test files to stay in sync with code changes
+  10. Run full test suite — auto-fix failures up to 3 times
+  11. Update spec.md
+  12. Append to run-log.md
+  13. Commit everything + push branch
+  14. Open PR
+  15. Close resolved GitHub issues that were implemented
+  16. Mark feedback entries as processed
+  17. Write run summary to Supabase
 
 Usage:
     python feedback_agent/pipeline.py
@@ -66,15 +68,21 @@ from feedback_agent.git_helper import (
     REPO_ROOT as GIT_REPO_ROOT,
 )
 from feedback_agent.github_issues import (
+    apply_design_decision,
     close_issue,
     create_issues_for_failed_implementations,
     create_issues_for_non_implementable,
+    fetch_needs_decision_issues,
     fetch_resolved_design_items,
+    post_design_review_comment,
 )
+from feedback_agent.design_reviewer import run_design_review, _parse_files_from_issue_body
 from feedback_agent.spec_updater import update_spec
 from feedback_agent.test_updater import update_tests
 
 DRY_RUN = os.environ.get("DRY_RUN", "0") == "1"
+SKIP_TESTS = os.environ.get("SKIP_TESTS", "0") == "1"   # skip test runner for local dev/E2E
+SKIP_GIT   = os.environ.get("SKIP_GIT", "0") == "1"     # skip branch/commit/push/PR for local dev
 MAX_FIX_ITERATIONS = 3
 
 REPO_ROOT = GIT_REPO_ROOT
@@ -130,9 +138,9 @@ def _log_to_supabase(action: str, success: bool, duration_ms: int = 0,
         "action": action,
         "success": success,
         "duration_ms": duration_ms,
-        "tokens_in": tokens_in,
-        "tokens_out": tokens_out,
-        "error": error or None,
+        "input_tokens": tokens_in,
+        "output_tokens": tokens_out,
+        "output_summary": error[:500] if error else None,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     try:
@@ -466,14 +474,68 @@ def run_pipeline():
         created_issues = create_issues_for_non_implementable(items, GITHUB_TOKEN, GITHUB_REPOSITORY)
         run_summary["issues_created"] = created_issues
 
-        # ── 5. Filter to implementable items ──────────────────────────────────
+        # ── 5. Design agent review of needs-decision issues ───────────────────
+        print("\n[Step 5] Running design agent review of needs-decision issues...")
+        spec_path = Path(APP_ROOT) / "spec.md"
+        spec_content = spec_path.read_text() if spec_path.exists() else ""
+        needs_decision_issues = fetch_needs_decision_issues(GITHUB_TOKEN, GITHUB_REPOSITORY)
+
+        if needs_decision_issues:
+            print(f"  Found {len(needs_decision_issues)} open needs-decision issue(s)")
+            agent_resolved, agent_unresolved, review_usage = run_design_review(
+                needs_decision_issues, spec_content
+            )
+            log_entry = _log_to_supabase(
+                "interaction_design_agent.design_review", success=True,
+                tokens_in=review_usage.get("input_tokens", 0),
+                tokens_out=review_usage.get("output_tokens", 0),
+            )
+            if log_entry:
+                _supabase_log_entries.append(log_entry)
+
+            # Apply decisions / review comments to GitHub
+            for r in agent_resolved:
+                apply_design_decision(GITHUB_TOKEN, GITHUB_REPOSITORY, r["issue_number"], r["decision"])
+            for u in agent_unresolved:
+                post_design_review_comment(GITHUB_TOKEN, GITHUB_REPOSITORY, u["issue_number"], u["comment"])
+
+            # Merge newly resolved issues back into items so they are implemented this run.
+            # For items already in `items` (created this run): mark implementable in place.
+            # For pre-existing items not in `items` (from previous runs): append as new items.
+            existing_ids = {item.get("id") for item in items}
+            for r in agent_resolved:
+                item_id = r["title"].split("]")[0].lstrip("[") if "]" in r["title"] else ""
+                if item_id in existing_ids:
+                    for item in items:
+                        if item.get("id") == item_id:
+                            item["implementable"] = True
+                            item["description"] = r["decision"]
+                            break
+                else:
+                    # Pre-existing issue — reconstruct a minimal item from the issue body
+                    items.append({
+                        "id": item_id or f"design-review-{r['issue_number']}",
+                        "title": r["title"].split("] ", 1)[-1] if "] " in r["title"] else r["title"],
+                        "implementable": True,
+                        "type": "design",
+                        "priority": "medium",
+                        "description": r["decision"],
+                        "files_likely_affected": _parse_files_from_issue_body(r.get("body", "")),
+                    })
+                    print(f"  [design-review] added pre-existing resolved item: {item_id}")
+
+            print(f"  Design review complete: {len(agent_resolved)} resolved, {len(agent_unresolved)} still needs human input")
+        else:
+            print("  No open needs-decision issues to review")
+
+        # ── 6. Filter to implementable items ──────────────────────────────────
         # Trust the synthesiser's `implementable` flag directly. A type-based
         # allowlist was previously used here but it silently blocked design/feature
         # items that had been resolved by the owner (who provided a decision comment
         # and set ready-to-implement). The synthesiser already marks those
         # implementable=true, so no extra filter is needed.
         to_implement = [i for i in items if i.get("implementable")]
-        print(f"\n[Step 7] Implementing {len(to_implement)} item(s)...")
+        print(f"\n{len(to_implement)} item(s) queued for implementation")
 
         if not to_implement:
             print("No implementable items this run.")
@@ -483,13 +545,16 @@ def run_pipeline():
             _append_run_log(run_summary)
             return
 
-        # ── 6. Create branch ──────────────────────────────────────────────────
+        # ── 7. Create branch ──────────────────────────────────────────────────
         date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         branch_name = f"feedback/{date_str}-run-{run_id}"
-        create_branch(branch_name)
-        print(f"Branch: {branch_name}")
+        if SKIP_GIT:
+            print(f"[SKIP_GIT=1] Skipping branch creation — would create: {branch_name}")
+        else:
+            create_branch(branch_name)
+            print(f"Branch: {branch_name}")
 
-        # ── 7. Implement each change ──────────────────────────────────────────
+        # ── 8. Implement each change ──────────────────────────────────────────
         applied = []
         failed_implementations = []  # items that errored or returned no files
         all_changed_files = {}  # rel_path → new content
@@ -539,13 +604,20 @@ def run_pipeline():
             update_feedback_run(conn, run_id, {"status": "no_changes"})
             run_summary["status"] = "no_changes"
             _append_run_log(run_summary)
+            # Still summarise what happened so the dashboard reflects this run
+            try:
+                summary_data = _call_run_summarizer(_supabase_log_entries)
+                if summary_data:
+                    _write_run_summary(summary_data)
+            except Exception as e:
+                print(f"  [warn] run summary failed: {e}")
             return
 
         run_summary["changes_applied"] = applied
         run_summary["failed_implementations"] = failed_implementations
 
-        # ── 8. Update tests ───────────────────────────────────────────────────
-        print("\n[Step 8] Updating tests to reflect code changes...")
+        # ── 9. Update tests ───────────────────────────────────────────────────
+        print("\n[Step 9] Updating tests to reflect code changes...")
         try:
             _, test_usage = update_tests(all_changed_files)
             log_entry = _log_to_supabase(
@@ -559,28 +631,33 @@ def run_pipeline():
             print(f"  [warn] test update failed: {e}")
             _log_to_supabase("testing_agent.update_tests", success=False, error=str(e))
 
-        # ── 9. Run tests with auto-fix loop ───────────────────────────────────
-        print("\n[Step 9] Running test suite...")
+        # ── 10. Run tests with auto-fix loop ──────────────────────────────────
+        print("\n[Step 10] Running test suite...")
         test_passed = False
         last_test_output = ""
 
-        for iteration in range(1, MAX_FIX_ITERATIONS + 1):
-            test_passed, test_output = _run_tests()
-            last_test_output = test_output
-            summary_line = test_output.split("\n")[-1] if test_output else "no output"
+        if SKIP_TESTS:
+            print("  [SKIP_TESTS=1] Skipping test runner — treating as passed for local E2E test.")
+            test_passed = True
+            run_summary["test_result"] = "SKIPPED (SKIP_TESTS=1)"
+        else:
+            for iteration in range(1, MAX_FIX_ITERATIONS + 1):
+                test_passed, test_output = _run_tests()
+                last_test_output = test_output
+                summary_line = test_output.split("\n")[-1] if test_output else "no output"
 
-            if test_passed:
-                print(f"  Tests passed (iteration {iteration})")
-                run_summary["test_result"] = f"PASSED (iteration {iteration}): {summary_line}"
-                break
-            else:
-                print(f"  Tests FAILED (iteration {iteration}/{MAX_FIX_ITERATIONS})")
-                if iteration < MAX_FIX_ITERATIONS:
-                    print(f"  Auto-fixing...")
-                    fixed = _auto_fix_tests(test_output, all_changed_files)
-                    if not fixed:
-                        print("  No fixes suggested — stopping early")
-                        break
+                if test_passed:
+                    print(f"  Tests passed (iteration {iteration})")
+                    run_summary["test_result"] = f"PASSED (iteration {iteration}): {summary_line}"
+                    break
+                else:
+                    print(f"  Tests FAILED (iteration {iteration}/{MAX_FIX_ITERATIONS})")
+                    if iteration < MAX_FIX_ITERATIONS:
+                        print(f"  Auto-fixing...")
+                        fixed = _auto_fix_tests(test_output, all_changed_files)
+                        if not fixed:
+                            print("  No fixes suggested — stopping early")
+                            break
 
         if not test_passed:
             run_summary["status"] = "tests_failed"
@@ -595,70 +672,75 @@ def run_pipeline():
             print(f"\n[ABORT] Tests failed after {MAX_FIX_ITERATIONS} fix attempts. No PR created.")
             sys.exit(1)
 
-        # ── 10. Update spec.md ────────────────────────────────────────────────
-        print("\n[Step 10] Updating spec.md...")
+        # ── 11. Update spec.md ────────────────────────────────────────────────
+        print("\n[Step 11] Updating spec.md...")
         try:
             new_spec_version = update_spec(GIT_REPO_ACTUAL_ROOT, APP_ROOT)
             run_summary["spec_version"] = new_spec_version or "unchanged"
         except Exception as e:
             print(f"  [warn] spec update failed: {e}")
 
-        # ── 11. Append run-log ────────────────────────────────────────────────
+        # ── 12. Append run-log ────────────────────────────────────────────────
         run_summary["status"] = "completed"
         _append_run_log(run_summary)
 
-        # ── 12. Commit and push ───────────────────────────────────────────────
-        commit_msg = (
-            f"[feedback-agent] Apply {len(applied)} feedback-driven change(s)\n\n"
-            + "\n".join(f"- {c['title']}" for c in applied)
-            + "\n\nCo-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
-        )
-        committed = commit_all(commit_msg)
-        if not committed:
-            update_feedback_run(conn, run_id, {"status": "no_changes"})
-            return
+        # ── 13. Commit and push ───────────────────────────────────────────────
+        if SKIP_GIT:
+            print("[SKIP_GIT=1] Skipping commit/push/PR — files written to disk only.")
+            run_summary["pr_url"] = "(skipped — SKIP_GIT=1)"
+        else:
+            commit_msg = (
+                f"[feedback-agent] Apply {len(applied)} feedback-driven change(s)\n\n"
+                + "\n".join(f"- {c['title']}" for c in applied)
+                + "\n\nCo-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
+            )
+            committed = commit_all(commit_msg)
+            if not committed:
+                update_feedback_run(conn, run_id, {"status": "no_changes"})
+                return
 
-        push_branch(branch_name)
+            push_branch(branch_name)
 
-        # ── 13. Open PR ───────────────────────────────────────────────────────
-        pr_body = (
-            "## Automated feedback-driven changes\n\n"
-            "This PR was generated by the nightly feedback agent pipeline.\n\n"
-            "### Changes applied\n"
-            + "\n".join(f"- **{c['id']}**: {c['title']}" for c in applied)
-            + "\n\n### Tests\n"
-            f"✅ Full test suite passed ({run_summary['test_result']})\n\n"
-            "### Spec\n"
-            f"Spec updated to {run_summary['spec_version']}\n\n"
-            "### Feedback processed\n"
-            f"{len(feedback)} feedback entries marked as processed.\n\n"
-            "🤖 Generated with [Claude Code](https://claude.com/claude-code)"
-        )
-        pr_url = open_pr(
-            branch_name,
-            f"[feedback-agent] {len(applied)} feedback-driven change(s)",
-            pr_body,
-        )
-        print(f"\nPR created: {pr_url}")
-        run_summary["pr_url"] = pr_url
+            # ── 14. Open PR ───────────────────────────────────────────────────────
+            pr_body = (
+                "## Automated feedback-driven changes\n\n"
+                "This PR was generated by the nightly feedback agent pipeline.\n\n"
+                "### Changes applied\n"
+                + "\n".join(f"- **{c['id']}**: {c['title']}" for c in applied)
+                + "\n\n### Tests\n"
+                f"✅ Full test suite passed ({run_summary['test_result']})\n\n"
+                "### Spec\n"
+                f"Spec updated to {run_summary['spec_version']}\n\n"
+                "### Feedback processed\n"
+                f"{len(feedback)} feedback entries marked as processed.\n\n"
+                "🤖 Generated with [Claude Code](https://claude.com/claude-code)"
+            )
+            pr_url = open_pr(
+                branch_name,
+                f"[feedback-agent] {len(applied)} feedback-driven change(s)",
+                pr_body,
+            )
+            print(f"\nPR created: {pr_url}")
+            run_summary["pr_url"] = pr_url
 
-        # ── 14. Close resolved issues that were implemented ───────────────────
-        implemented_ids = {c["id"] for c in applied}
-        for resolved in resolved_items:
-            if resolved["id"] in implemented_ids:
-                close_issue(GITHUB_TOKEN, GITHUB_REPOSITORY, resolved["issue_number"], pr_url)
+        # ── 15. Close resolved issues that were implemented ───────────────────
+        if not SKIP_GIT:
+            implemented_ids = {c["id"] for c in applied}
+            for resolved in resolved_items:
+                if resolved["id"] in implemented_ids:
+                    close_issue(GITHUB_TOKEN, GITHUB_REPOSITORY, resolved["issue_number"], run_summary["pr_url"])
 
-        # ── 15. Mark feedback as processed ───────────────────────────────────
+        # ── 16. Mark feedback as processed ───────────────────────────────────
         mark_feedback_processed(conn, [r["id"] for r in feedback])
         update_feedback_run(conn, run_id, {
             "status": "completed",
             "changes_applied": applied,
             "branch_name": branch_name,
-            "pr_url": pr_url,
+            "pr_url": run_summary.get("pr_url", ""),
         })
 
-        # ── 16. Summarise run via run_summarizer_agent ────────────────────────
-        print("\n[Step 16] Generating run summary...")
+        # ── 17. Summarise run via run_summarizer_agent ────────────────────────
+        print("\n[Step 17] Generating run summary...")
         try:
             summary_data = _call_run_summarizer(_supabase_log_entries)
             if summary_data:
@@ -667,7 +749,7 @@ def run_pipeline():
             print(f"  [warn] run summary failed: {e}")
 
         print(f"\n{'='*60}")
-        print(f"Pipeline complete. {len(applied)} change(s) → {pr_url}")
+        print(f"Pipeline complete. {len(applied)} change(s) → {run_summary.get('pr_url', '(no PR)')}")
         print(f"{'='*60}\n")
 
     except Exception as e:
