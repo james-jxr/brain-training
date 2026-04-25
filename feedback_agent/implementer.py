@@ -110,12 +110,16 @@ def implement_change(item: dict) -> tuple[dict, dict]:
     client = anthropic.Anthropic()
 
     if system_prompt:
-        # Agent Central path: generic role as system, task-specific user message
+        # Agent Central path: generic role as system, task-specific user message.
+        # Reminder at the end of the user message reinforces the JSON-only output rule
+        # from the system prompt, reducing prose responses.
         user_message = (
-            f"Implement this change:\n\n"
+            f"Implement this change. Return JSON only — no prose.\n\n"
             f"**Title:** {item['title']}\n\n"
             f"**Description:** {item['description']}\n\n"
-            f"**Files to modify:**\n\n{file_contents_text}"
+            f"**Files to modify:**\n\n{file_contents_text}\n\n"
+            f"Return the JSON object with a \"files\" key mapping relative paths to "
+            f"complete updated file contents. No other text."
         )
         message = client.messages.create(
             model="claude-opus-4-7",
