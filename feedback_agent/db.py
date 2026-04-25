@@ -6,11 +6,7 @@ from datetime import datetime, timezone
 
 
 def get_conn():
-    url = os.environ["DATABASE_URL"]
-    # Railway provides postgres:// — psycopg2 requires postgresql://
-    if url.startswith("postgres://"):
-        url = url.replace("postgres://", "postgresql://", 1)
-    return psycopg2.connect(url)
+    return psycopg2.connect(os.environ["DATABASE_URL"])
 
 
 def fetch_unprocessed_feedback(conn):
