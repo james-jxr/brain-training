@@ -81,37 +81,59 @@ def write_files(file_map: dict):
         print(f"  [wrote] {rel_path}")
 
 
-def implement_change(item: dict) -> dict:
+def implement_change(item: dict) -> tuple[dict, dict]:
     """
     For a single change item, read the affected files, call Claude to
-    produce updates, write them to disk. Returns the updated file map.
+    produce updates, write them to disk.
+    Returns (file_map, usage) where usage = {"input_tokens": N, "output_tokens": N}.
+    Uses build_agent from Agent Central with system+user split; falls back to
+    local implementation.md template as a single user message.
     """
     file_paths = item.get("files_likely_affected", [])
     if not file_paths:
         print(f"  [skip] {item['id']} — no files specified")
-        return {}
+        return {}, {}
 
     contents = read_files(file_paths)
     if not contents:
         print(f"  [skip] {item['id']} — no readable files")
-        return {}
+        return {}, {}
 
     file_contents_text = "\n\n".join(
         f"### {path}\n```\n{content}\n```"
         for path, content in contents.items()
     )
 
-    prompt = (load_prompt("implementation")
-              .replace("{title}", item["title"])
-              .replace("{description}", item["description"])
-              .replace("{file_contents}", file_contents_text))
+    from feedback_agent.agent_loader import get_system_prompt
+    system_prompt = get_system_prompt("build_agent")
 
     client = anthropic.Anthropic()
-    message = client.messages.create(
-        model="claude-opus-4-7",
-        max_tokens=16000,
-        messages=[{"role": "user", "content": prompt}]
-    )
+
+    if system_prompt:
+        # Agent Central path: generic role as system, task-specific user message
+        user_message = (
+            f"Implement this change:\n\n"
+            f"**Title:** {item['title']}\n\n"
+            f"**Description:** {item['description']}\n\n"
+            f"**Files to modify:**\n\n{file_contents_text}"
+        )
+        message = client.messages.create(
+            model="claude-opus-4-7",
+            max_tokens=16000,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_message}]
+        )
+    else:
+        # Local fallback: full template as single user message
+        prompt = (load_prompt("implementation")
+                  .replace("{title}", item["title"])
+                  .replace("{description}", item["description"])
+                  .replace("{file_contents}", file_contents_text))
+        message = client.messages.create(
+            model="claude-opus-4-7",
+            max_tokens=16000,
+            messages=[{"role": "user", "content": prompt}]
+        )
 
     raw = message.content[0].text.strip()
     if raw.startswith("```"):
@@ -124,9 +146,17 @@ def implement_change(item: dict) -> dict:
         raise ValueError(f"Claude returned an empty response (stop_reason={message.stop_reason})")
 
     try:
-        file_map = json.loads(raw)
+        result = json.loads(raw)
     except json.JSONDecodeError as e:
         raise ValueError(f"Claude returned non-JSON (stop_reason={message.stop_reason}): {raw[:200]}") from e
 
+    # build_agent returns {"files": {...}, "summary": ...}; local template returns flat {path: content}
+    file_map = result.get("files", result) if isinstance(result, dict) else result
+
+    usage = {
+        "input_tokens": message.usage.input_tokens,
+        "output_tokens": message.usage.output_tokens,
+    }
+
     write_files(file_map)
-    return file_map
+    return file_map, usage
