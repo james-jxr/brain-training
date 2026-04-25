@@ -71,11 +71,15 @@ def update_tests(changed_file_map: dict) -> tuple[dict, dict]:
     client = anthropic.Anthropic()
 
     if system_prompt:
-        # Agent Central path: generic role as system, task-specific user message
+        # Agent Central path: generic role as system, task-specific user message.
+        # JSON-only reminder at the end reduces prose responses.
         user_message = (
-            "Update or add test files to cover the following source changes.\n\n"
+            "Update or add test files to cover the following source changes. "
+            "Return JSON only — no prose.\n\n"
             f"## Changed source files\n\n{changed_section}\n\n"
-            f"## Existing test files\n\n{test_section}"
+            f"## Existing test files\n\n{test_section}\n\n"
+            "Return a JSON object mapping relative test file paths to complete "
+            "updated file contents, or {} if no test changes are needed."
         )
         message = client.messages.create(
             model="claude-sonnet-4-6",
