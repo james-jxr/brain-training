@@ -225,6 +225,73 @@ Then apply the label `ready-to-implement` and the next pipeline run will retry i
     return created
 
 
+def fetch_needs_decision_issues(token: str, repo_name: str) -> list:
+    """
+    Fetch all open issues labelled `needs-decision`.
+    Returns list of {issue_number, title, body, comments} dicts.
+    """
+    if not token or not repo_name:
+        return []
+    repo = _get_repo(token, repo_name)
+    issues = []
+    try:
+        for issue in repo.get_issues(state="open", labels=["needs-decision"]):
+            comments = [c.body for c in issue.get_comments()]
+            issues.append({
+                "issue_number": issue.number,
+                "title": issue.title,
+                "body": issue.body or "",
+                "comments": comments,
+            })
+    except GithubException as e:
+        print(f"  [issues] warning: could not fetch needs-decision issues: {e}")
+    return issues
+
+
+def apply_design_decision(token: str, repo_name: str, issue_number: int, decision: str):
+    """
+    Post a decision comment, apply `ready-to-implement`, remove `needs-decision`.
+    """
+    if not token or not repo_name:
+        return
+    try:
+        repo = _get_repo(token, repo_name)
+        issue = repo.get_issue(issue_number)
+        issue.create_comment(
+            f"**Design agent decision:**\n\n{decision}\n\n"
+            "_This decision was resolved automatically from the spec by the design agent. "
+            "The pipeline will implement this change in the current run._"
+        )
+        try:
+            issue.add_to_labels("ready-to-implement")
+        except GithubException:
+            pass
+        try:
+            issue.remove_from_labels("needs-decision")
+        except GithubException:
+            pass
+        print(f"  [design-review] resolved #{issue_number} — applied ready-to-implement")
+    except GithubException as e:
+        print(f"  [design-review] warning: could not apply decision to #{issue_number}: {e}")
+
+
+def post_design_review_comment(token: str, repo_name: str, issue_number: int, comment: str):
+    """Post a review comment on a needs-decision issue the agent could not resolve."""
+    if not token or not repo_name:
+        return
+    try:
+        repo = _get_repo(token, repo_name)
+        issue = repo.get_issue(issue_number)
+        issue.create_comment(
+            f"**Design agent review:**\n\n{comment}\n\n"
+            "_The design agent reviewed the spec but could not find a definitive answer. "
+            "Human input is still required._"
+        )
+        print(f"  [design-review] posted review comment on #{issue_number}")
+    except GithubException as e:
+        print(f"  [design-review] warning: could not post comment on #{issue_number}: {e}")
+
+
 def close_issue(token: str, repo_name: str, issue_number: int, pr_url: str = ""):
     """Close a GitHub issue after the item has been implemented."""
     if not token or not repo_name:
