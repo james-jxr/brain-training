@@ -45,13 +45,16 @@ def _build_test_files_section(test_dirs: list[Path]) -> str:
     return "\n\n".join(parts)
 
 
-def update_tests(changed_file_map: dict) -> dict:
+def update_tests(changed_file_map: dict) -> tuple[dict, dict]:
     """
     Given a map of {rel_path: new_content} for changed source files,
-    produce updated test files if needed. Returns {rel_path: content} of changed tests.
+    produce updated test files if needed.
+    Returns (file_map, usage) where usage = {"input_tokens": N, "output_tokens": N}.
+    Uses testing_agent from Agent Central with system+user split; falls back to
+    local test_update.md template as a single user message.
     """
     if not changed_file_map:
-        return {}
+        return {}, {}
 
     changed_section = _build_changed_files_section(changed_file_map)
     # Cap test section to avoid overflowing context — only include files likely related
@@ -60,18 +63,36 @@ def update_tests(changed_file_map: dict) -> dict:
 
     if not test_section:
         print("  [tests] no existing test files found, skipping test update")
-        return {}
+        return {}, {}
 
-    prompt = (load_prompt("test_update")
-              .replace("{changed_files_with_content}", changed_section)
-              .replace("{existing_test_files}", test_section))
+    from feedback_agent.agent_loader import get_system_prompt
+    system_prompt = get_system_prompt("testing_agent")
 
     client = anthropic.Anthropic()
-    message = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=16000,
-        messages=[{"role": "user", "content": prompt}]
-    )
+
+    if system_prompt:
+        # Agent Central path: generic role as system, task-specific user message
+        user_message = (
+            "Update or add test files to cover the following source changes.\n\n"
+            f"## Changed source files\n\n{changed_section}\n\n"
+            f"## Existing test files\n\n{test_section}"
+        )
+        message = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=16000,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_message}]
+        )
+    else:
+        # Local fallback: full template as single user message
+        prompt = (load_prompt("test_update")
+                  .replace("{changed_files_with_content}", changed_section)
+                  .replace("{existing_test_files}", test_section))
+        message = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=16000,
+            messages=[{"role": "user", "content": prompt}]
+        )
 
     raw = message.content[0].text.strip()
     if raw.startswith("```"):
@@ -90,7 +111,12 @@ def update_tests(changed_file_map: dict) -> dict:
 
     if not file_map:
         print("  [tests] no test changes needed")
-        return {}
+        return {}, {}
+
+    usage = {
+        "input_tokens": message.usage.input_tokens,
+        "output_tokens": message.usage.output_tokens,
+    }
 
     # Write updated test files
     for rel_path, content in file_map.items():
@@ -99,4 +125,4 @@ def update_tests(changed_file_map: dict) -> dict:
         abs_path.write_text(content)
         print(f"  [tests] updated {rel_path}")
 
-    return file_map
+    return file_map, usage
