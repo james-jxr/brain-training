@@ -1,7 +1,11 @@
 # GitHub Issues integration: create issues for non-implementable items,
 # fetch resolved items (ready-to-implement label), close issues after implementation.
 import os
+from datetime import datetime, timezone
 from github import Github, GithubException
+
+_PIPELINE_CLOSE_MARKER = "Implemented autonomously by the feedback pipeline"
+_CLOSED_ISSUE_LOOKBACK_DAYS = 7
 
 
 def _get_repo(token: str, repo_name: str):
@@ -54,13 +58,11 @@ def create_issues_for_non_implementable(items: list, token: str, repo_name: str)
     repo = _get_repo(token, repo_name)
     created = []
 
-    # Build set of existing open issue slugs for dedup (match by [id] prefix, not exact title)
-    existing_slugs = set()
+    # Build set of existing open issue titles for fast lookup
+    existing_titles = set()
     try:
-        for issue in repo.get_issues(state="open"):
-            if issue.title.startswith("["):
-                slug = issue.title.split("]")[0][1:]
-                existing_slugs.add(slug)
+        for issue in repo.get_issues(state="open", labels=["feedback-agent"]):
+            existing_titles.add(issue.title)
     except GithubException as e:
         print(f"  [issues] warning: could not fetch existing issues: {e}")
 
@@ -69,8 +71,8 @@ def create_issues_for_non_implementable(items: list, token: str, repo_name: str)
             continue
 
         title = _issue_title(item)
-        if item["id"] in existing_slugs:
-            print(f"  [issues] already exists: [{item['id']}]")
+        if title in existing_titles:
+            print(f"  [issues] already exists: {title}")
             continue
 
         labels = ["feedback-agent", item.get("type", "design"), item.get("priority", "medium")]
@@ -97,7 +99,10 @@ def create_issues_for_non_implementable(items: list, token: str, repo_name: str)
 
 def fetch_resolved_design_items(token: str, repo_name: str) -> list:
     """
-    Fetch open issues labelled feedback-agent + ready-to-implement.
+    Fetch issues labelled feedback-agent + ready-to-implement.
+    Checks both open issues and recently-closed ones (within the last 7 days),
+    so that owners who close an issue after adding a decision comment are still
+    picked up by the next pipeline run.
     Returns list of {id, title, decision, issue_number} dicts.
     """
     if not token or not repo_name:
@@ -105,26 +110,45 @@ def fetch_resolved_design_items(token: str, repo_name: str) -> list:
 
     repo = _get_repo(token, repo_name)
     resolved = []
+    seen_ids = set()
+    now = datetime.now(timezone.utc)
 
-    try:
-        issues = repo.get_issues(state="open", labels=["feedback-agent", "ready-to-implement"])
-        for issue in issues:
-            # Parse item ID from title: "[stroop-button-colour] Fix Stroop..."
-            item_id = issue.title.split("]")[0].lstrip("[") if "]" in issue.title else issue.title
+    for state in ("open", "closed"):
+        try:
+            issues = repo.get_issues(state=state, labels=["feedback-agent", "ready-to-implement"])
+            for issue in issues:
+                if state == "closed":
+                    # Skip issues closed more than 7 days ago
+                    closed_at = issue.closed_at
+                    if closed_at:
+                        if closed_at.tzinfo is None:
+                            closed_at = closed_at.replace(tzinfo=timezone.utc)
+                        if (now - closed_at).days > _CLOSED_ISSUE_LOOKBACK_DAYS:
+                            continue
 
-            # Get decision from most recent comment
-            comments = list(issue.get_comments())
-            decision = comments[-1].body if comments else ""
+                # Parse item ID from title: "[stroop-button-colour] Fix Stroop..."
+                item_id = issue.title.split("]")[0].lstrip("[") if "]" in issue.title else issue.title
+                if item_id in seen_ids:
+                    continue
 
-            resolved.append({
-                "id": item_id,
-                "title": issue.title,
-                "decision": decision,
-                "issue_number": issue.number,
-            })
-            print(f"  [issues] resolved item: {item_id}")
-    except GithubException as e:
-        print(f"  [issues] warning: could not fetch resolved issues: {e}")
+                comments = list(issue.get_comments())
+
+                # Skip closed issues that the pipeline itself closed after implementation
+                if state == "closed" and comments:
+                    if _PIPELINE_CLOSE_MARKER in comments[-1].body:
+                        continue
+
+                seen_ids.add(item_id)
+                decision = comments[-1].body if comments else ""
+                resolved.append({
+                    "id": item_id,
+                    "title": issue.title,
+                    "decision": decision,
+                    "issue_number": issue.number,
+                })
+                print(f"  [issues] resolved item: {item_id} (state: {state})")
+        except GithubException as e:
+            print(f"  [issues] warning: could not fetch {state} resolved issues: {e}")
 
     return resolved
 
@@ -142,12 +166,10 @@ def create_issues_for_failed_implementations(items: list, token: str, repo_name:
     repo = _get_repo(token, repo_name)
     created = []
 
-    existing_slugs = set()
+    existing_titles = set()
     try:
-        for issue in repo.get_issues(state="open"):
-            if issue.title.startswith("["):
-                slug = issue.title.split("]")[0][1:]
-                existing_slugs.add(slug)
+        for issue in repo.get_issues(state="open", labels=["feedback-agent"]):
+            existing_titles.add(issue.title)
     except GithubException as e:
         print(f"  [issues] warning: could not fetch existing issues: {e}")
 
@@ -156,8 +178,7 @@ def create_issues_for_failed_implementations(items: list, token: str, repo_name:
         error = entry.get("error", "No files were written — Claude may have returned an empty or unparseable response.")
         title = f"[{item['id']}] Implementation failed: {item['title']}"
 
-        slug = title.split("]")[0][1:] if title.startswith("[") else title
-        if slug in existing_slugs:
+        if title in existing_titles:
             print(f"  [issues] already exists: {title}")
             continue
 
