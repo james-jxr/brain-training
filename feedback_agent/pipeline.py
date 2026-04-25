@@ -35,6 +35,7 @@ import os
 import re
 import subprocess
 import sys
+import uuid
 from datetime import date, datetime, timezone
 from pathlib import Path
 
@@ -89,8 +90,57 @@ GIT_REPO_ACTUAL_ROOT = _git_root_proc.stdout.strip() if _git_root_proc.returncod
 
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 GITHUB_REPOSITORY = os.environ.get("GITHUB_REPOSITORY", "james-jxr/app-dev-capability")
+GH_RUN_ID = os.environ.get("GITHUB_RUN_ID") or str(uuid.uuid4())
 
 PROMPTS_DIR = Path(__file__).parent / "prompts"
+
+
+# ── Supabase logging ───────────────────────────────────────────────────────────
+
+_supabase_client = None
+
+def _get_supabase():
+    """Lazy Supabase client — returns None if not configured."""
+    global _supabase_client
+    if _supabase_client is not None:
+        return _supabase_client
+    url = os.environ.get("SUPABASE_URL", "")
+    key = os.environ.get("SUPABASE_SERVICE_KEY", "")
+    if not url or not key:
+        return None
+    try:
+        from supabase import create_client
+        _supabase_client = create_client(url, key)
+        return _supabase_client
+    except Exception as e:
+        print(f"  [supabase] could not connect: {e}")
+        return None
+
+
+def _log_to_supabase(action: str, success: bool, duration_ms: int = 0,
+                     tokens_in: int = 0, tokens_out: int = 0, error: str = "") -> dict | None:
+    """Append one row to agent_performance_logs. Returns the inserted row or None."""
+    sb = _get_supabase()
+    if not sb:
+        return None
+    row = {
+        "project_id": "brain-training",
+        "run_id": GH_RUN_ID,
+        "agent_name": action.split(".")[0] if "." in action else "pipeline",
+        "action": action,
+        "success": success,
+        "duration_ms": duration_ms,
+        "tokens_in": tokens_in,
+        "tokens_out": tokens_out,
+        "error": error or None,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        result = sb.table("agent_performance_logs").insert(row).execute()
+        return result.data[0] if result.data else row
+    except Exception as e:
+        print(f"  [supabase] log write failed: {e}")
+        return None
 
 
 # ── Test runner ────────────────────────────────────────────────────────────────
@@ -188,16 +238,31 @@ def _auto_fix_tests(test_output: str, changed_files: dict) -> bool:
         f"### {p}\n```\n{c}\n```" for p, c in files_to_read.items()
     )
 
-    prompt = ((PROMPTS_DIR / "test_fix.md").read_text()
-              .replace("{test_output}", test_output[:8000])
-              .replace("{failing_files_with_content}", file_contents[:20000]))
+    from feedback_agent.agent_loader import get_system_prompt
+    system_prompt = get_system_prompt("testing_agent")
 
     client = anthropic.Anthropic()
-    message = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=16000,
-        messages=[{"role": "user", "content": prompt}]
-    )
+    if system_prompt:
+        user_message = (
+            "Fix the failing tests shown below. Return only the changed files as JSON.\n\n"
+            f"## Test output\n\n```\n{test_output[:8000]}\n```\n\n"
+            f"## Failing files with content\n\n{file_contents[:20000]}"
+        )
+        message = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=16000,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_message}]
+        )
+    else:
+        prompt = ((PROMPTS_DIR / "test_fix.md").read_text()
+                  .replace("{test_output}", test_output[:8000])
+                  .replace("{failing_files_with_content}", file_contents[:20000]))
+        message = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=16000,
+            messages=[{"role": "user", "content": prompt}]
+        )
 
     raw = message.content[0].text.strip()
     if raw.startswith("```"):
@@ -275,6 +340,58 @@ def _append_run_log(summary: dict):
 
 # ── Main pipeline ──────────────────────────────────────────────────────────────
 
+def _call_run_summarizer(log_entries: list) -> str | None:
+    """
+    Call run_summarizer_agent with the collected log entries.
+    Returns the plain-English summary string, or None on failure.
+    """
+    if not log_entries:
+        return None
+    from feedback_agent.agent_loader import get_system_prompt
+    system_prompt = get_system_prompt("run_summarizer_agent")
+    if not system_prompt:
+        return None
+    try:
+        client = anthropic.Anthropic()
+        message = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=1024,
+            system=system_prompt,
+            messages=[{"role": "user", "content": json.dumps(log_entries, default=str)}]
+        )
+        raw = message.content[0].text.strip()
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        raw = raw.strip()
+        return json.loads(raw)
+    except Exception as e:
+        print(f"  [summarizer] failed: {e}")
+        return None
+
+
+def _write_run_summary(summary_data: dict):
+    """Write run summary to Supabase run_summaries table."""
+    sb = _get_supabase()
+    if not sb or not summary_data:
+        return
+    try:
+        row = {
+            "project_id": "brain-training",
+            "run_date": summary_data.get("run_date", date.today().isoformat()),
+            "summary": summary_data.get("summary", ""),
+            "total_actions": summary_data.get("total_actions", 0),
+            "successful_actions": summary_data.get("successful_actions", 0),
+            "failed_actions": summary_data.get("failed_actions", 0),
+            "escalations": summary_data.get("escalations", 0),
+        }
+        sb.table("run_summaries").insert(row).execute()
+        print(f"  [supabase] run summary written for {row['run_date']}")
+    except Exception as e:
+        print(f"  [supabase] run summary write failed: {e}")
+
+
 def run_pipeline():
     print(f"\n{'='*60}")
     print(f"Feedback Agent Pipeline — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
@@ -282,7 +399,9 @@ def run_pipeline():
 
     conn = get_conn()
     run_id = insert_feedback_run(conn, {"status": "pending"})
-    print(f"Run ID: {run_id}")
+    print(f"Run ID: {run_id} | GH Run: {GH_RUN_ID}")
+
+    _supabase_log_entries: list[dict] = []
 
     run_summary = {
         "status": "pending",
@@ -317,7 +436,14 @@ def run_pipeline():
 
         # ── 3. Synthesise ──────────────────────────────────────────────────────
         print("\n[Step 3] Synthesising feedback with Claude...")
-        items = synthesise(feedback, resolved_items=resolved_items)
+        items, synth_usage = synthesise(feedback, resolved_items=resolved_items)
+        log_entry = _log_to_supabase(
+            "feedback_synthesis_agent.synthesise", success=True,
+            tokens_in=synth_usage.get("input_tokens", 0),
+            tokens_out=synth_usage.get("output_tokens", 0),
+        )
+        if log_entry:
+            _supabase_log_entries.append(log_entry)
         print(f"Change items identified: {len(items)}")
         for item in items:
             flag = "✓" if item.get("implementable") else "–"
@@ -371,7 +497,14 @@ def run_pipeline():
         for item in to_implement:
             print(f"\n  Implementing: {item['id']}")
             try:
-                file_map = implement_change(item)
+                file_map, impl_usage = implement_change(item)
+                log_entry = _log_to_supabase(
+                    "build_agent.implement_change", success=bool(file_map),
+                    tokens_in=impl_usage.get("input_tokens", 0),
+                    tokens_out=impl_usage.get("output_tokens", 0),
+                )
+                if log_entry:
+                    _supabase_log_entries.append(log_entry)
                 if file_map:
                     applied.append({
                         "id": item["id"],
@@ -390,6 +523,7 @@ def run_pipeline():
                     })
             except Exception as e:
                 print(f"  [error] {item['id']}: {e}")
+                _log_to_supabase("build_agent.implement_change", success=False, error=str(e))
                 failed_implementations.append({"item": item, "error": str(e)})
 
         # Create GitHub Issues for failed implementations so they can be reviewed
@@ -413,9 +547,17 @@ def run_pipeline():
         # ── 8. Update tests ───────────────────────────────────────────────────
         print("\n[Step 8] Updating tests to reflect code changes...")
         try:
-            update_tests(all_changed_files)
+            _, test_usage = update_tests(all_changed_files)
+            log_entry = _log_to_supabase(
+                "testing_agent.update_tests", success=True,
+                tokens_in=test_usage.get("input_tokens", 0),
+                tokens_out=test_usage.get("output_tokens", 0),
+            )
+            if log_entry:
+                _supabase_log_entries.append(log_entry)
         except Exception as e:
             print(f"  [warn] test update failed: {e}")
+            _log_to_supabase("testing_agent.update_tests", success=False, error=str(e))
 
         # ── 9. Run tests with auto-fix loop ───────────────────────────────────
         print("\n[Step 9] Running test suite...")
@@ -514,6 +656,15 @@ def run_pipeline():
             "branch_name": branch_name,
             "pr_url": pr_url,
         })
+
+        # ── 16. Summarise run via run_summarizer_agent ────────────────────────
+        print("\n[Step 16] Generating run summary...")
+        try:
+            summary_data = _call_run_summarizer(_supabase_log_entries)
+            if summary_data:
+                _write_run_summary(summary_data)
+        except Exception as e:
+            print(f"  [warn] run summary failed: {e}")
 
         print(f"\n{'='*60}")
         print(f"Pipeline complete. {len(applied)} change(s) → {pr_url}")
