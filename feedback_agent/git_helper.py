@@ -16,9 +16,6 @@ REPO_ROOT = str(Path(__file__).parent.parent.resolve())
 
 
 def create_branch(branch_name: str) -> str:
-    # Discard any uncommitted changes before switching (e.g. run-log.md from a prior retry)
-    run(["git", "reset", "--hard", "HEAD"], cwd=REPO_ROOT)
-    run(["git", "clean", "-fd", "--exclude=backend/.env"], cwd=REPO_ROOT)
     run(["git", "checkout", "main"], cwd=REPO_ROOT)
     run(["git", "pull", "origin", "main"], cwd=REPO_ROOT)
     run(["git", "checkout", "-b", branch_name], cwd=REPO_ROOT)
@@ -37,6 +34,21 @@ def commit_all(message: str):
 
 def push_branch(branch_name: str):
     run(["git", "push", "origin", branch_name], cwd=REPO_ROOT)
+
+
+def commit_single_file(rel_path: str, message: str):
+    """Commit a single file directly on the current branch (used for run-log on failure)."""
+    run(["git", "add", rel_path], cwd=REPO_ROOT)
+    status = run(["git", "status", "--porcelain"], cwd=REPO_ROOT)
+    if not status:
+        return
+    run(["git", "commit", "-m", message], cwd=REPO_ROOT)
+
+
+def push_main():
+    """Push current branch to origin main (used to record run-log on failure)."""
+    run(["git", "checkout", "main"], cwd=REPO_ROOT)
+    run(["git", "push", "origin", "main"], cwd=REPO_ROOT)
 
 
 def open_pr(branch_name: str, title: str, body: str) -> str:
