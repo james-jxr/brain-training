@@ -1,12 +1,12 @@
-# Synthesis stage: reads raw feedback, calls the feedback_agent (system prompt loaded
-# from Supabase) to produce a structured list of actionable change items.
+# Synthesis stage: reads raw feedback, calls Claude to produce a structured
+# list of actionable change items classified by type and priority.
 import anthropic
+import json
 import os
 from pathlib import Path
-from feedback_agent.json_utils import extract_json
-from feedback_agent.agent_loader import get_system_prompt
 
 REPO_ROOT = str(Path(__file__).parent.parent.resolve())
+PROMPTS_DIR = Path(__file__).parent / "prompts"
 
 # Directories to walk for the file tree
 SEARCH_DIRS = [
@@ -17,30 +17,9 @@ SEARCH_DIRS = [
     "backend/schemas",
 ]
 
-# Built-in system prompt used when Supabase is unavailable
-_BUILTIN_SYSTEM_PROMPT = """You are a product analyst reviewing user feedback for a brain training web app.
 
-The app has these components:
-- Baseline assessment (multi-game adaptive cognitive test using a 2-up/1-down staircase)
-- Training sessions (exercise types: NBack, DigitSpan, GoNoGo, Stroop, CardMemory, ShapeSort)
-- Dashboard, Progress, Onboarding, Settings, Session, SessionSummary, FreePlay pages
-- Frontend: React/Vite. Backend: FastAPI/Python. DB: PostgreSQL.
-
-Analyse feedback and produce a JSON array of change items. Each item must have:
-- "id": short slug (e.g. "stroop-button-colour")
-- "title": one-line description
-- "type": one of "bug_fix" | "mechanic_change" | "feature" | "design"
-- "priority": "high" | "medium" | "low"
-- "description": what to change and why (2-3 sentences)
-- "files_likely_affected": array of relative file paths from the file tree provided
-- "implementable": true if a coding agent can implement this without further design decisions
-
-Rules:
-- Output JSON only — no prose before or after.
-- Merge duplicate feedback into a single item.
-- Do not create items for vague or already-resolved feedback.
-- items with implementable=false will be logged as GitHub Issues for human review.
-- files_likely_affected must use real paths from the file tree, not guesses."""
+def load_prompt(name: str) -> str:
+    return (PROMPTS_DIR / f"{name}.md").read_text()
 
 
 def build_file_tree() -> str:
@@ -62,8 +41,8 @@ def build_file_tree() -> str:
 
 
 def synthesise(feedback_rows: list, resolved_items: list | None = None) -> list:
-    """Call the feedback_agent to synthesise feedback rows into structured change items."""
-    if not feedback_rows and not resolved_items:
+    """Call Claude to synthesise feedback rows into structured change items."""
+    if not feedback_rows:
         return []
 
     feedback_text = "\n".join(
@@ -80,28 +59,23 @@ def synthesise(feedback_rows: list, resolved_items: list | None = None) -> list:
             lines.append(f"- [{item['id']}] {item['title']}: {item.get('decision', '(no decision comment)')}")
         resolved_text = "\n".join(lines)
 
-    user_message = f"""## Source file tree
-
-{file_tree}
-
-## Previously resolved design items
-
-The following items were flagged as non-implementable but have since been resolved by the product owner. Mark these implementable=true with the decision reflected in the description:
-
-{resolved_text or "(none)"}
-
-## Raw user feedback
-
-{feedback_text}"""
-
-    system_prompt = get_system_prompt("feedback_agent") or _BUILTIN_SYSTEM_PROMPT
+    prompt = (load_prompt("synthesis")
+              .replace("{file_tree}", file_tree)
+              .replace("{resolved_items}", resolved_text or "(none)")
+              .replace("{feedback_text}", feedback_text))
 
     client = anthropic.Anthropic()
     message = client.messages.create(
-        model="claude-opus-4-6",
+        model="claude-opus-4-7",
         max_tokens=8192,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_message}],
+        messages=[{"role": "user", "content": prompt}]
     )
 
-    return extract_json(message.content[0].text, expected_start="[")
+    raw = message.content[0].text.strip()
+    if raw.startswith("```"):
+        raw = raw.split("```")[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+    raw = raw.strip()
+
+    return json.loads(raw)
