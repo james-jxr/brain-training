@@ -1,33 +1,19 @@
 # Implementation stage: for each implementable change item, reads the relevant
-# source files and calls the build_agent (system prompt from Supabase) to produce
-# updated file contents.
+# source files and calls Claude to produce the updated file contents.
 import anthropic
 import json
 import os
 from pathlib import Path
-from feedback_agent.json_utils import extract_json
-from feedback_agent.agent_loader import get_system_prompt
 
 REPO_ROOT = str(Path(__file__).parent.parent.resolve())
+PROMPTS_DIR = Path(__file__).parent / "prompts"
 
 # Directories to search when resolving file paths
 SEARCH_DIRS = ["frontend/src", "backend/routers", "backend/models", "backend/services", "backend/schemas"]
 
-# Built-in system prompt used when Supabase is unavailable
-_BUILTIN_SYSTEM_PROMPT = """You are a senior software engineer implementing a specific change to a brain training web app.
-Frontend: React/Vite. Backend: FastAPI/Python. DB: PostgreSQL.
 
-Implement the described change. Return ONLY a JSON object mapping each file path to its complete updated content.
-
-Rules:
-- Return valid JSON only — no prose, no markdown fences.
-- Each key is the relative file path (e.g. "frontend/src/components/exercises/Stroop.jsx").
-- Each value is the complete updated file content as a string.
-- Make the minimal change needed — do not refactor or add features beyond what is described.
-- Do not change existing function signatures, parameter names, or return types unless the description explicitly requires it.
-- Export pure functions for testable logic (scoring, game results) so tests can verify without rendering components.
-- Do not add comments explaining what you changed.
-- Do not include files that have not changed."""
+def load_prompt(name: str) -> str:
+    return (PROMPTS_DIR / f"{name}.md").read_text()
 
 
 def _build_index() -> dict:
@@ -83,16 +69,7 @@ def read_files(file_paths: list) -> dict:
 
 
 def write_files(file_map: dict):
-    """Write updated file contents to disk. Skips entries with null/non-string content.
-
-    Handles the Supabase build_agent nested format where Claude returns:
-      {"summary": "...", "files": {"path/to/file": "content", ...}}
-    by extracting the inner "files" dict before writing.
-    """
-    if "files" in file_map and isinstance(file_map.get("files"), dict):
-        print(f"  [write_files] detected nested 'files' format — extracting inner dict")
-        file_map = file_map["files"]
-
+    """Write updated file contents to disk. Skips entries with null/non-string content."""
     for rel_path, content in file_map.items():
         if not isinstance(content, str):
             print(f"  [warn] skipping {rel_path} — content is {type(content).__name__}, not str")
@@ -106,7 +83,7 @@ def write_files(file_map: dict):
 
 def implement_change(item: dict) -> dict:
     """
-    For a single change item, read the affected files, call the build_agent to
+    For a single change item, read the affected files, call Claude to
     produce updates, write them to disk. Returns the updated file map.
     """
     file_paths = item.get("files_likely_affected", [])
@@ -124,31 +101,30 @@ def implement_change(item: dict) -> dict:
         for path, content in contents.items()
     )
 
-    user_message = f"""## Change to implement
-
-Title: {item["title"]}
-Description: {item["description"]}
-
-## Current file contents
-
-{file_contents_text}"""
-
-    system_prompt = get_system_prompt("build_agent") or _BUILTIN_SYSTEM_PROMPT
+    prompt = (load_prompt("implementation")
+              .replace("{title}", item["title"])
+              .replace("{description}", item["description"])
+              .replace("{file_contents}", file_contents_text))
 
     client = anthropic.Anthropic()
     message = client.messages.create(
-        model="claude-opus-4-6",
+        model="claude-opus-4-7",
         max_tokens=16000,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_message}],
+        messages=[{"role": "user", "content": prompt}]
     )
 
-    raw = message.content[0].text
-    if not raw.strip():
+    raw = message.content[0].text.strip()
+    if raw.startswith("```"):
+        raw = raw.split("```")[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+    raw = raw.strip()
+
+    if not raw:
         raise ValueError(f"Claude returned an empty response (stop_reason={message.stop_reason})")
 
     try:
-        file_map = extract_json(raw)
+        file_map = json.loads(raw)
     except json.JSONDecodeError as e:
         raise ValueError(f"Claude returned non-JSON (stop_reason={message.stop_reason}): {raw[:200]}") from e
 
