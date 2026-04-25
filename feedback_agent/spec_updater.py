@@ -78,8 +78,9 @@ def update_spec(repo_root: str, app_root: str) -> str:
         return current_version
 
     today = date.today().isoformat()
-    prompt = (PROMPTS_DIR / "spec_update.md").read_text()
-    prompt = (prompt
+    from feedback_agent.agent_loader import get_system_prompt
+    template = get_system_prompt("spec_updater_agent") or (PROMPTS_DIR / "spec_update.md").read_text()
+    prompt = (template
               .replace("{current_version}", current_version)
               .replace("{today}", today)
               .replace("{changed_files}", changed_files or "(none)")
