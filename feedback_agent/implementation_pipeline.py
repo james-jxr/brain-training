@@ -71,7 +71,11 @@ from feedback_agent.test_updater import update_tests
 from feedback_agent.agent_loader import get_system_prompt
 from feedback_agent.prioritiser import prioritise_issues
 
-PROJECT_ID = os.environ.get("PROJECT_ID", "brain-training")
+PROJECT_ID = (
+    os.environ.get("PROJECT_ID")
+    or os.environ.get("GITHUB_REPOSITORY", "").split("/")[-1]
+    or "unknown-project"
+)
 DRY_RUN = os.environ.get("DRY_RUN", "0") == "1"
 SKIP_TESTS = os.environ.get("SKIP_TESTS", "0") == "1"
 SKIP_GIT = os.environ.get("SKIP_GIT", "0") == "1"
@@ -177,20 +181,28 @@ def _run_tests() -> tuple[bool, str]:
     passed = True
 
     env = {**os.environ, "DATABASE_URL": "sqlite:////tmp/pipeline_test.db"}
-    backend_result = subprocess.run(
-        [sys.executable, "-m", "pytest", "backend/tests/", "-q", "--tb=short",
-         "--no-header", "-W", "ignore::DeprecationWarning"],
-        cwd=APP_ROOT, capture_output=True, text=True, env=env
-    )
-    backend_out = (backend_result.stdout + backend_result.stderr).strip()
-    backend_ok = backend_result.returncode == 0
-    if not backend_ok:
-        passed = False
-    results.append(f"Backend: {'PASSED' if backend_ok else 'FAILED'}\n{backend_out}")
+
+    # Backend tests — skip if directory doesn't exist
+    if (Path(APP_ROOT) / "backend" / "tests").exists():
+        backend_result = subprocess.run(
+            [sys.executable, "-m", "pytest", "backend/tests/", "-q", "--tb=short",
+             "--no-header", "-W", "ignore::DeprecationWarning"],
+            cwd=APP_ROOT, capture_output=True, text=True, env=env
+        )
+        backend_out = (backend_result.stdout + backend_result.stderr).strip()
+        backend_ok = backend_result.returncode == 0
+        if not backend_ok:
+            passed = False
+        results.append(f"Backend: {'PASSED' if backend_ok else 'FAILED'}\n{backend_out}")
+
+    # Frontend tests — use frontend/ subdirectory if present, otherwise repo root
+    frontend_cwd = Path(APP_ROOT) / "frontend"
+    if not frontend_cwd.exists():
+        frontend_cwd = Path(APP_ROOT)
 
     frontend_result = subprocess.run(
         ["npm", "test"],
-        cwd=str(Path(APP_ROOT) / "frontend"),
+        cwd=str(frontend_cwd),
         capture_output=True, text=True
     )
     frontend_out = (frontend_result.stdout + frontend_result.stderr).strip()
