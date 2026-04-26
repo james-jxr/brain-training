@@ -126,7 +126,7 @@ def implement_change(item: dict) -> tuple[dict, dict]:
             f"complete updated file contents. No other text."
         )
         message = client.messages.create(
-            model="claude-opus-4-6",
+            model="claude-sonnet-4-6",
             max_tokens=16000,
             system=system_prompt,
             messages=[
@@ -141,7 +141,7 @@ def implement_change(item: dict) -> tuple[dict, dict]:
                   .replace("{description}", item["description"])
                   .replace("{file_contents}", file_contents_text))
         message = client.messages.create(
-            model="claude-opus-4-6",
+            model="claude-sonnet-4-6",
             max_tokens=16000,
             messages=[
                 {"role": "user", "content": prompt},
