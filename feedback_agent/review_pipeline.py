@@ -58,7 +58,11 @@ from feedback_agent.github_issues import (
 )
 from feedback_agent.design_reviewer import run_design_reviews
 
-PROJECT_ID = os.environ.get("PROJECT_ID", "brain-training")
+PROJECT_ID = (
+    os.environ.get("PROJECT_ID")
+    or os.environ.get("GITHUB_REPOSITORY", "").split("/")[-1]
+    or "unknown-project"
+)
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 GITHUB_REPOSITORY = os.environ.get("GITHUB_REPOSITORY", f"james-jxr/{PROJECT_ID}")
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
