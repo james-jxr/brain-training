@@ -6,31 +6,53 @@ from datetime import datetime, timezone
 
 
 def get_conn():
-    return psycopg2.connect(os.environ["DATABASE_URL"])
+    url = os.environ.get("DATABASE_URL")
+    if not url:
+        return None
+    return psycopg2.connect(url)
 
 
 def fetch_unprocessed_feedback(conn):
-    """Return all feedback entries where processed_at IS NULL."""
-    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-        cur.execute("""
-            SELECT id, page_context, feedback_text, created_at
-            FROM feedback_entries
-            WHERE processed_at IS NULL
-            ORDER BY created_at ASC
-        """)
-        return cur.fetchall()
+    """
+    Return all feedback entries where processed_at IS NULL.
+    Returns [] if conn is None, the table doesn't exist, or any other DB error.
+    """
+    if conn is None:
+        print("  [db] DATABASE_URL not set — skipping feedback fetch")
+        return []
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("""
+                SELECT id, page_context, feedback_text, created_at
+                FROM feedback_entries
+                WHERE processed_at IS NULL
+                ORDER BY created_at ASC
+            """)
+            return cur.fetchall()
+    except psycopg2.errors.UndefinedTable:
+        conn.rollback()
+        print("  [db] WARNING: feedback_entries table does not exist — skipping feedback")
+        return []
+    except Exception as e:
+        conn.rollback()
+        print(f"  [db] WARNING: could not fetch feedback: {e}")
+        return []
 
 
 def mark_feedback_processed(conn, ids):
     """Set processed_at = now() for all given IDs."""
-    if not ids:
+    if not ids or conn is None:
         return
-    with conn.cursor() as cur:
-        cur.execute(
-            "UPDATE feedback_entries SET processed_at = %s WHERE id = ANY(%s)",
-            (datetime.now(timezone.utc), ids)
-        )
-    conn.commit()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE feedback_entries SET processed_at = %s WHERE id = ANY(%s)",
+                (datetime.now(timezone.utc), ids)
+            )
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print(f"  [db] WARNING: could not mark feedback processed: {e}")
 
 
 def insert_feedback_run(conn, run: dict):
