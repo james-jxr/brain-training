@@ -12,10 +12,12 @@ def get_conn():
     return psycopg2.connect(url)
 
 
-def fetch_unprocessed_feedback(conn):
+def fetch_unprocessed_feedback(conn, project_id: str):
     """
-    Return all feedback entries where processed_at IS NULL.
-    Returns [] if conn is None, the table doesn't exist, or any other DB error.
+    Return unprocessed feedback entries for the given project.
+    Filters by project_id so each project's review pipeline only processes
+    its own feedback. Returns [] if conn is None, the table doesn't exist,
+    or any other DB error.
     """
     if conn is None:
         print("  [db] DATABASE_URL not set — skipping feedback fetch")
@@ -25,9 +27,9 @@ def fetch_unprocessed_feedback(conn):
             cur.execute("""
                 SELECT id, page_context, feedback_text, created_at
                 FROM feedback_entries
-                WHERE processed_at IS NULL
+                WHERE processed_at IS NULL AND project_id = %s
                 ORDER BY created_at ASC
-            """)
+            """, (project_id,))
             return cur.fetchall()
     except psycopg2.errors.UndefinedTable:
         conn.rollback()
