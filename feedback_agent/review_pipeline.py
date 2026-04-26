@@ -88,8 +88,9 @@ def _fetch_findings(table: str) -> list[dict]:
         return []
     # code_audit_findings has file_path; coordination_findings has artifact_a/artifact_b instead
     if table == "code_audit_findings":
-        select_cols = ("id,finding_type,severity,description,file_path,last_attempted_at,"
-                       "github_issue_number,auto_fixable,route_to")
+        # auto_fixable and route_to live on coordination_findings only
+        select_cols = ("id,finding_type,severity,description,file_path,"
+                       "last_attempted_at,github_issue_number")
     else:
         select_cols = ("id,finding_type,severity,description,last_attempted_at,"
                        "github_issue_number,artifact_a,artifact_b,auto_fixable,route_to")
@@ -370,7 +371,8 @@ def run_review_pipeline():
         print("\n[Step 9] Marking feedback as processed...")
         mark_feedback_processed(conn, [r["id"] for r in feedback])
 
-    conn.close()
+    if conn is not None:
+        conn.close()
 
     # ── 10. Write run summary ──────────────────────────────────────────────────
     print("\n[Step 10] Writing run summary...")
