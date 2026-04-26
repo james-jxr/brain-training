@@ -116,8 +116,7 @@ def implement_change(item: dict) -> tuple[dict, dict]:
 
     if system_prompt:
         # Agent Central path: generic role as system, task-specific user message.
-        # Reminder at the end of the user message reinforces the JSON-only output rule
-        # from the system prompt, reducing prose responses.
+        # Assistant prefill forces JSON output — model must continue from '{'.
         user_message = (
             f"Implement this change. Return JSON only — no prose.\n\n"
             f"**Title:** {item['title']}\n\n"
@@ -127,10 +126,13 @@ def implement_change(item: dict) -> tuple[dict, dict]:
             f"complete updated file contents. No other text."
         )
         message = client.messages.create(
-            model="claude-opus-4-7",
+            model="claude-opus-4-6",
             max_tokens=16000,
             system=system_prompt,
-            messages=[{"role": "user", "content": user_message}]
+            messages=[
+                {"role": "user", "content": user_message},
+                {"role": "assistant", "content": "{"},
+            ]
         )
     else:
         # Local fallback: full template as single user message
@@ -139,12 +141,16 @@ def implement_change(item: dict) -> tuple[dict, dict]:
                   .replace("{description}", item["description"])
                   .replace("{file_contents}", file_contents_text))
         message = client.messages.create(
-            model="claude-opus-4-7",
+            model="claude-opus-4-6",
             max_tokens=16000,
-            messages=[{"role": "user", "content": prompt}]
+            messages=[
+                {"role": "user", "content": prompt},
+                {"role": "assistant", "content": "{"},
+            ]
         )
 
-    raw = message.content[0].text.strip()
+    # Prepend the prefill character and strip any markdown fences
+    raw = "{" + message.content[0].text.strip()
     if raw.startswith("```"):
         raw = raw.split("```")[1]
         if raw.startswith("json"):
