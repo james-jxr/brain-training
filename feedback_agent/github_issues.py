@@ -325,10 +325,6 @@ def fetch_ready_to_implement_issues(token: str, repo_name: str) -> list[dict]:
         issues = []
         for issue in repo.get_issues(state="open", labels=[LABEL_READY]):
             label_names = [l.name for l in issue.labels]
-            # Never let the implementation pipeline attempt pipeline-failure notifications
-            if LABEL_PIPELINE in label_names:
-                print(f"  [issues] skipping #{issue.number} — has {LABEL_PIPELINE} label")
-                continue
             comments = [c.body for c in issue.get_comments()]
             failed_count = label_names.count(LABEL_FAILED_IMPL)
             issues.append({
