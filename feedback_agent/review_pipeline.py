@@ -291,7 +291,7 @@ def run_review_pipeline():
     # ── 4. Fetch user feedback ─────────────────────────────────────────────────
     print("\n[Step 4] Fetching unprocessed user feedback...")
     conn = get_conn()
-    feedback = fetch_unprocessed_feedback(conn)
+    feedback = fetch_unprocessed_feedback(conn, PROJECT_ID)
     print(f"  {len(feedback)} feedback row(s)")
 
     # ── 5. Fetch spec and file tree ────────────────────────────────────────────
