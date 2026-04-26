@@ -75,3 +75,11 @@ def update_feedback_run(conn, run_id: int, updates: dict):
             values
         )
     conn.commit()
+
+
+def mark_findings_resolved(conn, finding_ids: list[str], table: str):
+    """Mark a list of Supabase finding rows as resolved via direct psycopg2."""
+    # Note: in v2, _mark_findings_resolved() in pipeline.py handles this via
+    # Supabase REST rather than PostgreSQL, so this function is a no-op stub
+    # kept for import compatibility.
+    pass
