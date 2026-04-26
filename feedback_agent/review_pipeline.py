@@ -86,14 +86,20 @@ def _sb_headers() -> dict:
 def _fetch_findings(table: str) -> list[dict]:
     if not SUPABASE_URL:
         return []
+    # code_audit_findings has file_path; coordination_findings has artifact_a/artifact_b instead
+    if table == "code_audit_findings":
+        select_cols = ("id,finding_type,severity,description,file_path,last_attempted_at,"
+                       "github_issue_number,auto_fixable,route_to")
+    else:
+        select_cols = ("id,finding_type,severity,description,last_attempted_at,"
+                       "github_issue_number,artifact_a,artifact_b,auto_fixable,route_to")
     resp = requests.get(
         f"{SUPABASE_URL}/rest/v1/{table}",
         headers=_sb_headers(),
         params={
             "project_id": f"eq.{PROJECT_ID}",
             "resolved": "eq.false",
-            "select": "id,finding_type,severity,description,file_path,last_attempted_at,"
-                      "github_issue_number,artifact_a,artifact_b,auto_fixable,route_to",
+            "select": select_cols,
             "order": "created_at.asc",
         },
         timeout=15,
