@@ -72,7 +72,7 @@ def update_tests(changed_file_map: dict) -> tuple[dict, dict]:
 
     if system_prompt:
         # Agent Central path: generic role as system, task-specific user message.
-        # JSON-only reminder at the end reduces prose responses.
+        # Assistant prefill forces JSON output — model must continue from '{'.
         user_message = (
             "Update or add test files to cover the following source changes. "
             "Return JSON only — no prose.\n\n"
@@ -85,7 +85,10 @@ def update_tests(changed_file_map: dict) -> tuple[dict, dict]:
             model="claude-sonnet-4-6",
             max_tokens=16000,
             system=system_prompt,
-            messages=[{"role": "user", "content": user_message}]
+            messages=[
+                {"role": "user", "content": user_message},
+                {"role": "assistant", "content": "{"},
+            ]
         )
     else:
         # Local fallback: full template as single user message
@@ -95,10 +98,14 @@ def update_tests(changed_file_map: dict) -> tuple[dict, dict]:
         message = client.messages.create(
             model="claude-sonnet-4-6",
             max_tokens=16000,
-            messages=[{"role": "user", "content": prompt}]
+            messages=[
+                {"role": "user", "content": prompt},
+                {"role": "assistant", "content": "{"},
+            ]
         )
 
-    raw = message.content[0].text.strip()
+    # Prepend the prefill character and strip any markdown fences
+    raw = "{" + message.content[0].text.strip()
     if raw.startswith("```"):
         raw = raw.split("```")[1]
         if raw.startswith("json"):
