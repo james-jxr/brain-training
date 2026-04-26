@@ -9,6 +9,8 @@ from backend.security import get_current_user, get_current_user_optional
 
 router = APIRouter(prefix="/api/feedback", tags=["feedback"])
 
+PROJECT_ID = "brain-training"
+
 
 def _require_admin(current_user: User) -> None:
     """Raise 403 if the current user is not in the ADMIN_EMAILS list."""
@@ -42,6 +44,7 @@ def submit_feedback(
         page_context=feedback_data.page_context,
         session_id=feedback_data.session_id,
         feedback_text=feedback_data.feedback_text,
+        project_id=PROJECT_ID,
     )
     db.add(feedback)
     db.commit()
