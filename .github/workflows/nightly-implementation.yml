@@ -1,0 +1,62 @@
+name: Nightly Implementation Pipeline
+
+on:
+  schedule:
+    - cron: '0 5 * * *'   # UTC — runs after the review pipeline (04:00)
+  workflow_dispatch:             # enables manual trigger from the Actions tab
+
+jobs:
+  implementation-pipeline:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write        # push branch + commit implementation changes
+      pull-requests: write   # open PR
+      issues: write          # close implemented issues, post failure comments
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0     # full history needed for spec diff in spec_updater
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git identity
+        run: |
+          git config user.name  "implementation-agent[bot]"
+          git config user.email "noreply@github.com"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Python dependencies
+        run: pip install -r feedback_agent/requirements.txt
+
+      - name: Install Node dependencies
+        run: npm install
+        working-directory: frontend
+
+      - name: Run implementation pipeline
+        env:
+          DATABASE_URL:          ${{ secrets.DATABASE_URL }}
+          ANTHROPIC_API_KEY:     ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN:          ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY:     ${{ github.repository }}
+          SUPABASE_URL:          ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY:  ${{ secrets.SUPABASE_SERVICE_KEY }}
+          CI: "true"
+        run: python feedback_agent/implementation_pipeline.py
+
+      - name: Upload run log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: implementation-pipeline-failure-${{ github.run_id }}
+          path: run-log.md
+          if-no-files-found: ignore
