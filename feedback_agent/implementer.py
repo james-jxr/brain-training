@@ -9,7 +9,12 @@ REPO_ROOT = str(Path(__file__).parent.parent.resolve())
 PROMPTS_DIR = Path(__file__).parent / "prompts"
 
 # Directories to search when resolving file paths
-SEARCH_DIRS = ["frontend/src", "backend/routers", "backend/models", "backend/services", "backend/schemas"]
+SEARCH_DIRS = [
+    "frontend/src",
+    "backend/routers", "backend/models", "backend/services", "backend/schemas",
+    ".github/workflows",  # for pipeline-failure fixes
+    "feedback_agent",     # for pipeline-failure fixes
+]
 
 
 def load_prompt(name: str) -> str:
