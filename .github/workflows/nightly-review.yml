@@ -1,0 +1,46 @@
+name: Nightly Review Pipeline
+
+on:
+  schedule:
+    - cron: '0 4 * * *'   # UTC — runs after the nightly audit (03:00)
+  workflow_dispatch:             # enables manual trigger from the Actions tab
+
+jobs:
+  review-pipeline:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write              # create / update / comment on GitHub issues
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        run: pip install -r feedback_agent/requirements.txt
+
+      - name: Run review pipeline
+        env:
+          DATABASE_URL:          ${{ secrets.DATABASE_URL }}
+          ANTHROPIC_API_KEY:     ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN:          ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY:     ${{ github.repository }}
+          SUPABASE_URL:          ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY:  ${{ secrets.SUPABASE_SERVICE_KEY }}
+          CI: "true"
+        run: python feedback_agent/review_pipeline.py
+
+      - name: Upload run log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: review-pipeline-failure-${{ github.run_id }}
+          path: run-log.md
+          if-no-files-found: ignore
