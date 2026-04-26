@@ -36,11 +36,13 @@ jobs:
           node-version: '20'
 
       - name: Install Python dependencies
-        run: pip install -r feedback_agent/requirements.txt
+        run: |
+          pip install -r feedback_agent/requirements.txt
+          if [ -f backend/requirements.txt ]; then pip install -r backend/requirements.txt; fi
 
       - name: Install Node dependencies
-        run: npm install
-        working-directory: frontend
+        run: |
+          if [ -f frontend/package.json ]; then npm install --prefix frontend; else npm install; fi
 
       - name: Run implementation pipeline
         env:
