@@ -8,24 +8,16 @@ import anthropic
 
 PROMPTS_DIR = Path(__file__).parent / "prompts"
 
-# Source dirs to diff (relative to repo root)
-CODE_DIFF_PATHS = [
-    "apps/brain-training/backend/routers",
-    "apps/brain-training/backend/models",
-    "apps/brain-training/backend/services",
-    "apps/brain-training/backend/schemas",
-    "apps/brain-training/backend/main.py",
-    "apps/brain-training/frontend/src/components",
-    "apps/brain-training/frontend/src/pages",
-    "apps/brain-training/frontend/src/hooks",
-    "apps/brain-training/frontend/src/api",
-    "apps/brain-training/frontend/src/utils",
+# Extensions treated as source code for the spec diff.
+# The feedback_agent/ directory is excluded — it contains pipeline code, not app code.
+_SOURCE_EXTS = {"*.py", "*.js", "*.jsx", "*.ts", "*.tsx"}
+_EXCLUDE_PATHS = [
+    ":(exclude)feedback_agent/",
+    ":(exclude)node_modules/",
+    ":(exclude)*.min.*",
+    ":(exclude)package-lock.json",
 ]
-
-TEST_DIFF_PATHS = [
-    "apps/brain-training/backend/tests",
-    "apps/brain-training/frontend/src/test",
-]
+_TEST_PATTERNS = ["**/test/**", "**/tests/**", "**/*.test.*", "**/*_test.*", "**/test_*"]
 
 
 def _git(repo_root: str, *args) -> str:
@@ -40,6 +32,7 @@ def update_spec(repo_root: str, app_root: str) -> str:
     """
     Update spec.md to reflect code changes since it was last modified.
     Returns the new spec version string (e.g. 'v0.8').
+    Works for any project repo — no hardcoded paths.
     """
     spec_path = Path(app_root) / "spec.md"
 
@@ -50,17 +43,25 @@ def update_spec(repo_root: str, app_root: str) -> str:
         print("  [spec] could not find last spec commit, skipping")
         return ""
 
-    # Code diff since that commit
-    code_diff = _git(repo_root, "diff", spec_commit, "HEAD", "--", *CODE_DIFF_PATHS)
+    # Source diff (all app code, excluding pipeline code, tests, and generated files)
+    _test_markers = ("test/", "tests/", ".test.", "_test.", "test_")
+    source_globs = list(_SOURCE_EXTS) + _EXCLUDE_PATHS + [f":(exclude){rel_spec}"]
+    code_diff = _git(repo_root, "diff", spec_commit, "HEAD", "--", *source_globs)
+    # Strip test file hunks from the source diff so they don't appear twice
+    code_diff = "\n".join(
+        l for l in code_diff.splitlines()
+        if not any(marker in l for marker in _test_markers)
+    )
     code_diff = code_diff[:25000] if len(code_diff) > 25000 else code_diff
 
-    # Test diff since that commit
-    test_diff = _git(repo_root, "diff", spec_commit, "HEAD", "--", *TEST_DIFF_PATHS)
+    # Test diff (only test files)
+    test_globs = _TEST_PATTERNS + _EXCLUDE_PATHS
+    test_diff = _git(repo_root, "diff", spec_commit, "HEAD", "--", *test_globs)
     test_diff = test_diff[:8000] if len(test_diff) > 8000 else test_diff
 
-    # Changed file list
+    # Changed file list (all app files except spec itself)
     changed_files = _git(repo_root, "diff", "--name-only", spec_commit, "HEAD",
-                         "--", "apps/brain-training/", f":!{rel_spec}")
+                         "--", *source_globs)
 
     # Current spec version
     spec_content = spec_path.read_text()
