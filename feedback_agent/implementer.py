@@ -158,8 +158,17 @@ def implement_change(item: dict) -> tuple[dict, dict]:
 
     try:
         result = json.loads(raw)
-    except json.JSONDecodeError as e:
-        raise ValueError(f"Claude returned non-JSON (stop_reason={message.stop_reason}): {raw[:200]}") from e
+    except json.JSONDecodeError:
+        # Model may have wrapped JSON in prose — extract the first {...} block
+        start = raw.find("{")
+        end = raw.rfind("}")
+        if start != -1 and end > start:
+            try:
+                result = json.loads(raw[start:end + 1])
+            except json.JSONDecodeError as e:
+                raise ValueError(f"Claude returned non-JSON (stop_reason={message.stop_reason}): {raw[:200]}") from e
+        else:
+            raise ValueError(f"Claude returned non-JSON (stop_reason={message.stop_reason}): {raw[:200]}")
 
     # build_agent returns {"files": {...}, "summary": ...}; local template returns flat {path: content}
     file_map = result.get("files", result) if isinstance(result, dict) else result
