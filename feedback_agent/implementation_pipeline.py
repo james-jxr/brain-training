@@ -267,15 +267,15 @@ def _auto_fix_tests(test_output: str, changed_files: dict) -> bool:
         system=system_prompt,
         messages=[
             {"role": "user", "content": (
-                "Fix the failing tests shown below. Return only the changed files as JSON.\n\n"
+                "Fix the failing tests shown below. Return only the changed files as a JSON object — "
+                "no prose, no markdown. Start your response with { and end with }.\n\n"
                 f"## Test output\n\n```\n{test_output[:8000]}\n```\n\n"
                 f"## Failing files with content\n\n{file_contents[:20000]}"
             )},
-            {"role": "assistant", "content": "{"},
         ],
     )
 
-    raw = "{" + message.content[0].text.strip()
+    raw = message.content[0].text.strip()
     if raw.startswith("```"):
         raw = raw.split("```")[1]
         if raw.startswith("json"):
