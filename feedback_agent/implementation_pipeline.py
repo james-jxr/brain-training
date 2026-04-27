@@ -566,6 +566,7 @@ def run_implementation_pipeline():
                 break
             else:
                 print(f"  Tests FAILED (iteration {iteration}/{MAX_FIX_ITERATIONS})")
+                print(f"\n--- Test output (iteration {iteration}) ---\n{test_output}\n--- End test output ---\n")
                 if iteration < MAX_FIX_ITERATIONS:
                     print("  Auto-fixing...")
                     fixed = _auto_fix_tests(test_output, all_changed_files)
