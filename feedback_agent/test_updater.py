@@ -72,14 +72,14 @@ def update_tests(changed_file_map: dict) -> tuple[dict, dict]:
 
     if system_prompt:
         # Agent Central path: generic role as system, task-specific user message.
-        # Assistant prefill forces JSON output — model must continue from '{'.
         user_message = (
             "Update or add test files to cover the following source changes. "
-            "Return JSON only — no prose.\n\n"
+            "Return a JSON object only — no prose, no markdown.\n\n"
             f"## Changed source files\n\n{changed_section}\n\n"
             f"## Existing test files\n\n{test_section}\n\n"
-            "Return a JSON object mapping relative test file paths to complete "
-            "updated file contents, or {} if no test changes are needed."
+            "Return only a JSON object mapping relative test file paths to complete "
+            "updated file contents, or {} if no test changes are needed. "
+            "Start your response with { and end with }."
         )
         message = client.messages.create(
             model="claude-sonnet-4-6",
@@ -87,7 +87,6 @@ def update_tests(changed_file_map: dict) -> tuple[dict, dict]:
             system=system_prompt,
             messages=[
                 {"role": "user", "content": user_message},
-                {"role": "assistant", "content": "{"},
             ]
         )
     else:
@@ -100,12 +99,10 @@ def update_tests(changed_file_map: dict) -> tuple[dict, dict]:
             max_tokens=16000,
             messages=[
                 {"role": "user", "content": prompt},
-                {"role": "assistant", "content": "{"},
             ]
         )
 
-    # Prepend the prefill character and strip any markdown fences
-    raw = "{" + message.content[0].text.strip()
+    raw = message.content[0].text.strip()
     if raw.startswith("```"):
         raw = raw.split("```")[1]
         if raw.startswith("json"):
