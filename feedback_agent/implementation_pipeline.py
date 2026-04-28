@@ -219,35 +219,27 @@ def _run_tests() -> tuple[bool, str, bool]:
     # writable in the CI runner environment.
     frontend_env = {**os.environ, "VITEST_CACHE_DIR": "/tmp/vitest-cache"}
     frontend_result = subprocess.run(
-        ["npm", "test"],
-        cwd=str(frontend_cwd),
-        capture_output=True, text=True,
-        env=frontend_env,
+        ["npx", "vitest", "run", "--reporter=verbose"],
+        cwd=str(frontend_cwd), capture_output=True, text=True, env=frontend_env
     )
     frontend_out = (frontend_result.stdout + frontend_result.stderr).strip()
-    frontend_lines = [
-        _ANSI_RE.sub('', l) for l in frontend_out.splitlines()
-        if not l.startswith(">") and "esbuild" not in l and "oxc" not in l
-    ]
-    frontend_out = "\n".join(frontend_lines).strip()
     frontend_ok = frontend_result.returncode == 0
     if not frontend_ok:
         passed = False
     results.append(f"Frontend: {'PASSED' if frontend_ok else 'FAILED'}\n{frontend_out}")
 
-    combined = "\n\n".join(results)
+    combined_output = "\n\n".join(results)
 
-    # Detect infrastructure failures: non-zero exit with a known crash pattern
-    # but no extractable test-file failures.
+    # Detect infrastructure errors
     infra_error = False
     if not passed:
-        has_crash = any(p in combined for p in _INFRA_ERROR_PATTERNS)
-        backend_fails, frontend_fails = _extract_failing_info(combined)
-        if has_crash and not backend_fails and not frontend_fails:
+        lower_out = combined_output.lower()
+        has_test_failure = bool(re.search(r'\d+ failed', lower_out))
+        has_infra = any(pat.lower() in lower_out for pat in _INFRA_ERROR_PATTERNS)
+        if has_infra and not has_test_failure:
             infra_error = True
 
-    return passed, combined, infra_error
-
+    return passed, combined_output, infra_error
 
 def _extract_failing_info(test_output: str) -> tuple[list, list]:
     backend_files = set()
