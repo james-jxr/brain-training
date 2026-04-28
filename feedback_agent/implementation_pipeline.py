@@ -176,7 +176,22 @@ def _write_run_summary(counts: dict):
 
 # ── Test runner (reused from v2) ─────────────────────────────────────────────────
 
-def _run_tests() -> tuple[bool, str]:
+# Patterns that indicate an environment/tooling crash rather than a test
+# assertion failure. When matched (and no test failures are found), the run
+# is treated as an infrastructure error and issues are NOT marked
+# failed-implementation.
+_INFRA_ERROR_PATTERNS = (
+    "EACCES", "ENOMEM", "ENOSPC",
+    "permission denied", "Cannot allocate memory",
+)
+
+
+def _run_tests() -> tuple[bool, str, bool]:
+    """Return (passed, output, infra_error).
+
+    infra_error is True when the runner exited non-zero but no individual test
+    assertions failed — i.e. the tooling itself crashed (permissions, OOM, etc.).
+    """
     results = []
     passed = True
 
@@ -200,10 +215,14 @@ def _run_tests() -> tuple[bool, str]:
     if not frontend_cwd.exists():
         frontend_cwd = Path(APP_ROOT)
 
+    # VITEST_CACHE_DIR prevents EACCES crashes when /root/.vite-cache is not
+    # writable in the CI runner environment.
+    frontend_env = {**os.environ, "VITEST_CACHE_DIR": "/tmp/vitest-cache"}
     frontend_result = subprocess.run(
         ["npm", "test"],
         cwd=str(frontend_cwd),
-        capture_output=True, text=True
+        capture_output=True, text=True,
+        env=frontend_env,
     )
     frontend_out = (frontend_result.stdout + frontend_result.stderr).strip()
     frontend_lines = [
@@ -216,7 +235,18 @@ def _run_tests() -> tuple[bool, str]:
         passed = False
     results.append(f"Frontend: {'PASSED' if frontend_ok else 'FAILED'}\n{frontend_out}")
 
-    return passed, "\n\n".join(results)
+    combined = "\n\n".join(results)
+
+    # Detect infrastructure failures: non-zero exit with a known crash pattern
+    # but no extractable test-file failures.
+    infra_error = False
+    if not passed:
+        has_crash = any(p in combined for p in _INFRA_ERROR_PATTERNS)
+        backend_fails, frontend_fails = _extract_failing_info(combined)
+        if has_crash and not backend_fails and not frontend_fails:
+            infra_error = True
+
+    return passed, combined, infra_error
 
 
 def _extract_failing_info(test_output: str) -> tuple[list, list]:
@@ -549,14 +579,17 @@ def run_implementation_pipeline():
     test_passed = False
     last_test_output = ""
 
+    last_infra_error = False
+
     if SKIP_TESTS:
         print("  [SKIP_TESTS=1] Skipping test runner.")
         test_passed = True
         run_summary["test_result"] = "SKIPPED (SKIP_TESTS=1)"
     else:
         for iteration in range(1, MAX_FIX_ITERATIONS + 1):
-            test_passed, test_output = _run_tests()
+            test_passed, test_output, infra_error = _run_tests()
             last_test_output = test_output
+            last_infra_error = infra_error
             summary_line = test_output.split("\n")[-1] if test_output else "no output"
 
             if test_passed:
@@ -566,6 +599,9 @@ def run_implementation_pipeline():
             else:
                 print(f"  Tests FAILED (iteration {iteration}/{MAX_FIX_ITERATIONS})")
                 print(f"\n--- Test output (iteration {iteration}) ---\n{test_output}\n--- End test output ---\n")
+                if infra_error:
+                    print("  Infrastructure error detected — skipping auto-fix, issues will NOT be marked failed")
+                    break
                 if iteration < MAX_FIX_ITERATIONS:
                     print("  Auto-fixing...")
                     fixed = _auto_fix_tests(test_output, all_changed_files)
@@ -574,23 +610,34 @@ def run_implementation_pipeline():
                         break
 
     if not test_passed:
-        run_summary["status"] = "tests_failed"
+        run_summary["status"] = "infra_error" if last_infra_error else "tests_failed"
         run_summary["test_result"] = f"FAILED after {MAX_FIX_ITERATIONS} iterations"
         run_summary["errors"] = last_test_output[-2000:]
         _append_run_log(run_summary)
 
-        # Mark all implemented issues as failed — leave them ready-to-implement
-        for change in applied:
-            mark_implementation_failed(
-                GITHUB_TOKEN, GITHUB_REPOSITORY, change["issue_number"],
-                f"Test suite failed after {MAX_FIX_ITERATIONS} fix attempts:\n\n"
-                f"```\n{last_test_output[-1500:]}\n```"
-            )
-            counts["issues_implemented"] -= 1
-            counts["issues_failed"] += 1
+        if last_infra_error:
+            # Do NOT mark issues failed — the code was never actually tested.
+            print("\n[WARN] Test runner crashed due to an infrastructure error (not a code failure).")
+            print("  Issues have NOT been marked failed-implementation.")
+            print("  Fix the CI environment and re-run the pipeline.")
+        else:
+            # Mark all implemented issues as failed — leave them ready-to-implement
+            for change in applied:
+                mark_implementation_failed(
+                    GITHUB_TOKEN, GITHUB_REPOSITORY, change["issue_number"],
+                    f"Test suite failed after {MAX_FIX_ITERATIONS} fix attempts:\n\n"
+                    f"```\n{last_test_output[-1500:]}\n```"
+                )
+                counts["issues_implemented"] -= 1
+                counts["issues_failed"] += 1
 
         _write_run_summary(counts)
-        print(f"\n[ABORT] Tests failed after {MAX_FIX_ITERATIONS} fix attempts. No PR created.")
+        abort_msg = (
+            "Infrastructure error in test runner — no PR created."
+            if last_infra_error else
+            f"Tests failed after {MAX_FIX_ITERATIONS} fix attempts. No PR created."
+        )
+        print(f"\n[ABORT] {abort_msg}")
         sys.exit(1)
 
     # ── 7. Update spec.md ─────────────────────────────────────────────────────
