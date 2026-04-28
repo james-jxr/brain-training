@@ -12,7 +12,7 @@ const FILLS   = ['solid', 'outline'];
 const STUDY_PER_GROUP = 3;
 const TOTAL_TRIALS    = 12;
 const NUM_ROUNDS      = 3;
-const TRIALS_PER_ROUND = Math.round(TOTAL_TRIALS / 4);
+const TRIALS_PER_ROUND = Math.round(TOTAL_TRIALS / NUM_ROUNDS);
 
 // ─── Classification rules ────────────────────────────────────────────────────
 const RULES = {
