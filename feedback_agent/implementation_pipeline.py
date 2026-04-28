@@ -223,16 +223,15 @@ def _extract_failing_info(test_output: str) -> tuple[list, list]:
     backend_files = set()
     frontend_files = set()
     for line in test_output.splitlines():
-        if line.startswith("FAILED "):
-            path = line.split("FAILED ")[1].split("::")[0].strip()
-            if path.startswith("backend/"):
-                backend_files.add(path)
-        if "src/test/" in line and ".test." in line:
-            part = [p for p in line.split() if "src/test/" in p]
-            if part:
-                frontend_files.add(f"frontend/{part[0].lstrip('/')}")
+        # Extract backend test file paths (e.g. FAILED backend/tests/test_foo.py::test_bar)
+        backend_match = re.search(r'(backend/tests/\S+\.py)', line)
+        if backend_match:
+            backend_files.add(backend_match.group(1))
+        # Extract frontend test file paths (e.g. FAIL src/foo.test.ts)
+        frontend_match = re.search(r'(src/\S+\.(?:test|spec)\.(?:ts|tsx|js|jsx))', line)
+        if frontend_match:
+            frontend_files.add(frontend_match.group(1))
     return list(backend_files), list(frontend_files)
-
 
 def _auto_fix_tests(test_output: str, changed_files: dict) -> bool:
     backend_tests, frontend_tests = _extract_failing_info(test_output)
