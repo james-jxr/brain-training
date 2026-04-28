@@ -46,6 +46,7 @@ npm run lint         # ESLint
 
 ```bash
 # Backend (from brain-training/, venv active)
+# Note: conftest.py overrides DATABASE_URL to ./test.db regardless of env
 DATABASE_URL="sqlite:////tmp/brain_training_test.db" python -m pytest backend/tests/ -v
 
 # Run a single test file
@@ -86,6 +87,9 @@ JWT tokens are stored in both **httpOnly cookies** (browser security) and return
 | `backend/services/session_planner.py` | Builds sessions from 2–3 domains, ≥2 exercise variants per domain |
 | `backend/services/brain_health_score.py` | Composite score: 60% cognitive average + 40% lifestyle |
 | `backend/services/streak_manager.py` | 36-hour streak window, UTC datetimes |
+| `backend/services/exercise_generator.py` | Generates per-difficulty exercise payloads (symbol matching, visual categorisation) |
+
+There are 8 routers: `auth`, `baseline`, `adaptive_baseline`, `sessions`, `progress`, `lifestyle`, `account`, `feedback`.
 
 ### Key Frontend Modules
 
@@ -132,3 +136,22 @@ Both POST to `/api/feedback`. The export endpoint `GET /api/feedback` is restric
 
 **Frontend (`frontend/.env`):**
 - `VITE_API_BASE_URL` — backend URL (not needed in dev; Vite proxy handles it)
+
+## Feedback Agent Pipeline
+
+`feedback_agent/` contains an autonomous Claude-powered pipeline that runs outside the app:
+
+- **`review_pipeline.py`** — fetches unprocessed user feedback + Supabase audit findings, classifies them, and creates/updates GitHub issues. Run this first.
+- **`implementation_pipeline.py`** — fetches open `ready-to-implement` GitHub issues, implements each one via Claude API, runs tests, updates `spec.md`, commits, pushes, and opens a PR.
+
+Both scripts require additional env vars beyond the backend `.env`: `ANTHROPIC_API_KEY`, `GITHUB_TOKEN`, `GITHUB_REPOSITORY`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`. They load from `backend/.env` automatically.
+
+```bash
+# Install pipeline dependencies (separate from backend venv)
+pip install -r feedback_agent/requirements.txt
+
+# Dry run (no code written, no PRs opened)
+DRY_RUN=1 python -m feedback_agent.implementation_pipeline
+```
+
+`agent-config.json` at the repo root defines which Claude agents are active and maps to design docs under `docs/` (`product-brief.md`, `functional-spec.md`, `design-guide.md`, `technical-architecture.md`).

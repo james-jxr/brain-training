@@ -23,6 +23,7 @@ class UserResponse(BaseModel):
     email: str
     username: str
     onboarding_completed: bool
+    has_completed_baseline: bool
 
     class Config:
         from_attributes = True
