@@ -220,173 +220,142 @@ def run_review_pipeline():
         "design_escalated": 0,
     }
 
-    # Ensure labels exist in the repo
     ensure_labels(GITHUB_TOKEN, GITHUB_REPOSITORY)
 
-    # Load agent prompts
-    from feedback_agent.agent_loader import get_system_prompt
-    audit_findings_prompt   = get_system_prompt("audit_findings_agent") or ""
-    synthesis_prompt        = get_system_prompt("feedback_synthesis_agent") or ""
-    routing_prompt          = get_system_prompt("feedback_agent") or ""
-    func_design_prompt      = get_system_prompt("functional_design_agent") or ""
-    interact_design_prompt  = get_system_prompt("interaction_design_agent") or ""
-
-    # ── 1. Fetch unresolved findings ───────────────────────────────────────────
-    print("[Step 1] Fetching unresolved audit and coordination findings...")
+    # Step 1: Fetch unresolved findings from Supabase
+    print("[Step 1] Fetching audit and coordination findings...")
     audit_findings = _fetch_findings("code_audit_findings")
     coord_findings = _fetch_findings("coordination_findings")
 
-    # ── 2. Classify findings ───────────────────────────────────────────────────
-    if (audit_findings or coord_findings) and audit_findings_prompt:
-        print(f"\n[Step 2] Classifying {len(audit_findings)} audit + {len(coord_findings)} "
-              f"coordination finding(s)...")
-        try:
-            classifications, clf_usage = classify_audit_findings(
-                audit_findings, coord_findings, audit_findings_prompt
-            )
-            _log_performance("audit_findings_agent", "classify_findings", True,
-                             clf_usage["input_tokens"], clf_usage["output_tokens"])
-        except Exception as e:
-            print(f"  [classifier] ERROR: {e} — defaulting all to needs-human-review")
-            _log_performance("audit_findings_agent", "classify_findings", False)
-            # Default: everything to human review
-            classifications = [
-                {"finding_id": f["id"], "table": "code_audit_findings",
-                 "routing": "needs_human_review", "design_agent": None, "rationale": "Classifier failed."}
-                for f in audit_findings
-            ] + [
-                {"finding_id": f["id"], "table": "coordination_findings",
-                 "routing": "needs_human_review", "design_agent": None, "rationale": "Classifier failed."}
-                for f in coord_findings
-            ]
+    # Step 2: Classify audit findings
+    print("[Step 2] Classifying audit findings...")
+    if audit_findings:
+        classified_audit = classify_audit_findings(audit_findings, source="code_audit")
+        counts["audit_classified"] = len(classified_audit)
     else:
-        print("\n[Step 2] Skipping classification (no findings or no prompt).")
-        classifications = []
+        classified_audit = []
 
-    # ── 3. Create/update GitHub issues for findings ────────────────────────────
-    print(f"\n[Step 3] Creating GitHub issues for {len(classifications)} classified finding(s)...")
-    finding_map = {f["id"]: f for f in audit_findings + coord_findings}
-    for clf in classifications:
-        finding = finding_map.get(clf["finding_id"])
-        if not finding:
-            continue
-        issue_number = create_finding_issue(
-            token=GITHUB_TOKEN,
-            repo_name=GITHUB_REPOSITORY,
-            finding=finding,
-            table=clf["table"],
-            routing=clf["routing"],
-            rationale=clf["rationale"],
-            design_agent=clf.get("design_agent"),
-        )
-        if issue_number:
-            store_issue_number(SUPABASE_URL, SUPABASE_KEY, clf["table"],
-                               clf["finding_id"], issue_number)
+    # Classify coordination findings
+    if coord_findings:
+        classified_coord = classify_audit_findings(coord_findings, source="coordination")
+        counts["coord_classified"] = len(classified_coord)
+    else:
+        classified_coord = []
+
+    # Step 3: Create/update GitHub issues for findings
+    print("[Step 3] Creating/updating GitHub issues for findings...")
+    for finding in classified_audit + classified_coord:
+        try:
+            issue_number = create_finding_issue(
+                token=GITHUB_TOKEN,
+                repo=GITHUB_REPOSITORY,
+                finding=finding,
+            )
+            if issue_number and finding.get("id"):
+                table = "code_audit_findings" if "file_path" in finding else "coordination_findings"
+                store_issue_number(SUPABASE_URL, SUPABASE_KEY, table, finding["id"], issue_number)
             counts["issues_created"] += 1
-            if clf["table"] == "code_audit_findings":
-                counts["audit_classified"] += 1
-            else:
-                counts["coord_classified"] += 1
+            _log_performance("audit_findings_agent", "create_issue", True)
+        except Exception as e:
+            print(f"  [issues] WARNING: failed to create issue for finding {finding.get('id')}: {e}")
+            _log_performance("audit_findings_agent", "create_issue", False)
 
-    # ── 4. Fetch user feedback ─────────────────────────────────────────────────
-    print("\n[Step 4] Fetching unprocessed user feedback...")
-    conn = get_conn()
-    feedback = fetch_unprocessed_feedback(conn, PROJECT_ID)
-    print(f"  {len(feedback)} feedback row(s)")
+    # Step 4: Fetch unprocessed user feedback
+    print("[Step 4] Fetching unprocessed user feedback...")
+    try:
+        conn = get_conn()
+        feedback_rows = fetch_unprocessed_feedback(conn)
+        counts["feedback_items"] = len(feedback_rows)
+        print(f"  [db] {len(feedback_rows)} unprocessed feedback item(s)")
+    except Exception as e:
+        print(f"  [db] WARNING: could not fetch feedback: {e}")
+        feedback_rows = []
+        conn = None
 
-    # ── 5. Fetch spec and file tree ────────────────────────────────────────────
-    print("\n[Step 5] Reading spec and file tree...")
-    spec_content = _read_local(SPEC_CANDIDATES)
-    design_content = _read_local(DESIGN_CANDIDATES)
+    # Step 5: Fetch project spec and file tree
+    print("[Step 5] Fetching spec and file tree...")
+    spec_text = _read_local(SPEC_CANDIDATES)
+    design_text = _read_local(DESIGN_CANDIDATES)
     file_tree = build_file_tree(APP_ROOT)
-    print(f"  spec: {'found' if spec_content else 'not found'} | "
-          f"design: {'found' if design_content else 'not found'} | "
-          f"files: {len(file_tree.splitlines())} paths")
 
-    # ── 6. Synthesise and route feedback ──────────────────────────────────────
-    if feedback and synthesis_prompt and routing_prompt:
-        print(f"\n[Step 6] Synthesising {len(feedback)} feedback row(s)...")
+    # Step 6: Synthesise and route feedback
+    print("[Step 6] Synthesising feedback...")
+    if feedback_rows:
         try:
-            items, synth_usage = synthesise_feedback(
-                feedback_rows=feedback,
-                spec_content=spec_content,
+            synthesis = synthesise_feedback(
+                feedback_rows=feedback_rows,
+                spec_text=spec_text,
                 file_tree=file_tree,
-                synthesis_prompt=synthesis_prompt,
-                routing_prompt=routing_prompt,
             )
-            _log_performance("feedback_synthesis_agent", "synthesise", True,
-                             synth_usage["input_tokens"], synth_usage["output_tokens"])
         except Exception as e:
-            print(f"  [synthesizer] ERROR: {e}")
-            _log_performance("feedback_synthesis_agent", "synthesise", False)
-            items = []
+            print(f"  [synthesizer] WARNING: synthesis failed: {e}")
+            synthesis = []
     else:
-        print("\n[Step 6] Skipping synthesis (no feedback or missing prompts).")
-        items = []
+        synthesis = []
 
-    counts["feedback_items"] = len(items)
+    # Step 7: Create/update GitHub issues for feedback items
+    print("[Step 7] Creating GitHub issues for feedback...")
+    processed_ids = []
+    for item in synthesis:
+        try:
+            issue_number = create_feedback_issue(
+                token=GITHUB_TOKEN,
+                repo=GITHUB_REPOSITORY,
+                item=item,
+                design_text=design_text,
+            )
+            if issue_number:
+                counts["issues_created"] += 1
+            processed_ids.extend(item.get("feedback_ids", []))
+            _log_performance("feedback_agent", "create_issue", True)
+        except Exception as e:
+            print(f"  [issues] WARNING: failed to create feedback issue: {e}")
+            _log_performance("feedback_agent", "create_issue", False)
 
-    # ── 7. Create/update GitHub issues for feedback ────────────────────────────
-    print(f"\n[Step 7] Creating GitHub issues for {len(items)} feedback item(s)...")
-    for item in items:
-        if item.get("routing") == "skip":
-            print(f"  [skip] {item['id']}: {item.get('skip_reason', '')}")
-            continue
-        issue_number = create_feedback_issue(GITHUB_TOKEN, GITHUB_REPOSITORY, item)
-        if issue_number:
-            counts["issues_created"] += 1
-
-    # ── 8. Design agent review of needs-design-review issues ──────────────────
-    print("\n[Step 8] Fetching needs-design-review issues for agent resolution...")
+    # Step 8: Fetch open needs-design-review issues and resolve/escalate
+    print("[Step 8] Running design reviews...")
     design_issues = _fetch_design_review_issues()
+    if design_issues:
+        try:
+            design_counts = run_design_reviews(
+                issues=design_issues,
+                spec_text=spec_text,
+                design_text=design_text,
+                file_tree=file_tree,
+                token=GITHUB_TOKEN,
+                repo=GITHUB_REPOSITORY,
+            )
+            counts["design_resolved"] = design_counts.get("resolved", 0)
+            counts["design_escalated"] = design_counts.get("escalated", 0)
+        except Exception as e:
+            print(f"  [design] WARNING: design review failed: {e}")
 
-    if design_issues and (func_design_prompt or interact_design_prompt):
-        resolved, unresolved, review_usage = run_design_reviews(
-            issues=design_issues,
-            spec_content=spec_content,
-            design_content=design_content,
-            functional_design_prompt=func_design_prompt,
-            interaction_design_prompt=interact_design_prompt,
-        )
-        _log_performance("design_agents", "design_review", True,
-                         review_usage["input_tokens"], review_usage["output_tokens"])
+    # Step 9: Mark feedback as processed
+    print("[Step 9] Marking feedback as processed...")
+    if conn and processed_ids:
+        try:
+            mark_feedback_processed(conn, processed_ids)
+            print(f"  [db] Marked {len(processed_ids)} feedback item(s) as processed")
+        except Exception as e:
+            print(f"  [db] WARNING: could not mark feedback processed: {e}")
+    if conn:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
-        for r in resolved:
-            update_issue_labels(GITHUB_TOKEN, GITHUB_REPOSITORY, r["issue_number"],
-                                add=[LABEL_READY], remove=[LABEL_DESIGN])
-            comment = f"**Design agent decision:**\n\n{r['decision']}"
-            if r.get("guide_extension"):
-                comment += f"\n\n**Design guide extension:**\n\n{r['guide_extension']}"
-            post_comment(GITHUB_TOKEN, GITHUB_REPOSITORY, r["issue_number"], comment)
-            counts["design_resolved"] += 1
-
-        for u in unresolved:
-            update_issue_labels(GITHUB_TOKEN, GITHUB_REPOSITORY, u["issue_number"],
-                                add=[LABEL_HUMAN], remove=[LABEL_DESIGN])
-            post_comment(GITHUB_TOKEN, GITHUB_REPOSITORY, u["issue_number"],
-                         f"**Design agent review — needs human input:**\n\n"
-                         f"{u['remaining_questions']}")
-            counts["design_escalated"] += 1
-    else:
-        print("  No design-review issues to process.")
-
-    # ── 9. Mark feedback as processed ─────────────────────────────────────────
-    if feedback:
-        print("\n[Step 9] Marking feedback as processed...")
-        mark_feedback_processed(conn, [r["id"] for r in feedback])
-
-    if conn is not None:
-        conn.close()
-
-    # ── 10. Write run summary ──────────────────────────────────────────────────
-    print("\n[Step 10] Writing run summary...")
+    # Step 10: Write run summary
+    print("[Step 10] Writing run summary...")
     _write_run_summary(counts)
 
     print(f"\n{'='*60}")
-    print(f"Review pipeline complete.")
-    print(f"  Issues created/updated: {counts['issues_created']}")
-    print(f"  Design questions resolved: {counts['design_resolved']}")
-    print(f"  Escalated to human: {counts['design_escalated']}")
+    print("Review pipeline complete.")
+    print(f"  Audit findings classified : {counts['audit_classified']}")
+    print(f"  Coord findings classified : {counts['coord_classified']}")
+    print(f"  Feedback items processed  : {counts['feedback_items']}")
+    print(f"  Issues created/updated    : {counts['issues_created']}")
+    print(f"  Design questions resolved : {counts['design_resolved']}")
+    print(f"  Design questions escalated: {counts['design_escalated']}")
     print(f"{'='*60}\n")
 
 
