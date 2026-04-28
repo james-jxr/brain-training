@@ -90,16 +90,16 @@ def export_feedback(
     entries = query.order_by(FeedbackEntry.created_at.desc()).all()
 
     # Group by page_context
-    groups_dict = {}
+    entries_by_context = {}
     for entry in entries:
         context = entry.page_context
-        if context not in groups_dict:
-            groups_dict[context] = []
-        groups_dict[context].append(FeedbackResponse.model_validate(entry))
+        if context not in entries_by_context:
+            entries_by_context[context] = []
+        entries_by_context[context].append(FeedbackResponse.model_validate(entry))
 
     groups = [
         FeedbackEntryGroup(page_context=context, entries=feedback_list)
-        for context, feedback_list in sorted(groups_dict.items())
+        for context, feedback_list in sorted(entries_by_context.items())
     ]
 
     return FeedbackExportResponse(total=len(entries), groups=groups)
