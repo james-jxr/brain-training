@@ -44,6 +44,7 @@ import requests
 
 from feedback_agent.db import fetch_unprocessed_feedback, get_conn, mark_feedback_processed
 from feedback_agent.audit_classifier import classify_audit_findings
+from feedback_agent.agent_loader import get_system_prompt
 from feedback_agent.synthesizer import synthesise_feedback, build_file_tree
 from feedback_agent.github_issues import (
     ensure_labels,
@@ -227,19 +228,17 @@ def run_review_pipeline():
     audit_findings = _fetch_findings("code_audit_findings")
     coord_findings = _fetch_findings("coordination_findings")
 
-    # Step 2: Classify audit findings
+    # Step 2: Classify audit and coordination findings in one call
     print("[Step 2] Classifying audit findings...")
-    if audit_findings:
-        classified_audit = classify_audit_findings(audit_findings, source="code_audit")
+    if audit_findings or coord_findings:
+        audit_prompt = get_system_prompt("audit_findings_agent") or ""
+        all_classified, _ = classify_audit_findings(audit_findings, coord_findings, audit_prompt)
+        classified_audit = [c for c in all_classified if c.get("table") == "code_audit_findings"]
+        classified_coord = [c for c in all_classified if c.get("table") == "coordination_findings"]
         counts["audit_classified"] = len(classified_audit)
-    else:
-        classified_audit = []
-
-    # Classify coordination findings
-    if coord_findings:
-        classified_coord = classify_audit_findings(coord_findings, source="coordination")
         counts["coord_classified"] = len(classified_coord)
     else:
+        classified_audit = []
         classified_coord = []
 
     # Step 3: Create/update GitHub issues for findings
@@ -264,7 +263,7 @@ def run_review_pipeline():
     print("[Step 4] Fetching unprocessed user feedback...")
     try:
         conn = get_conn()
-        feedback_rows = fetch_unprocessed_feedback(conn)
+        feedback_rows = fetch_unprocessed_feedback(conn, PROJECT_ID)
         counts["feedback_items"] = len(feedback_rows)
         print(f"  [db] {len(feedback_rows)} unprocessed feedback item(s)")
     except Exception as e:
