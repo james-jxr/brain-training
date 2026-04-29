@@ -47,6 +47,7 @@ npm run lint         # ESLint
 ```bash
 # Backend (from brain-training/, venv active)
 # Note: conftest.py overrides DATABASE_URL to ./test.db regardless of env
+# pytest.ini sets asyncio_mode=strict — async test functions need @pytest.mark.asyncio
 DATABASE_URL="sqlite:////tmp/brain_training_test.db" python -m pytest backend/tests/ -v
 
 # Run a single test file
@@ -70,7 +71,7 @@ FastAPI (backend/main.py)
 SQLite / PostgreSQL
 ```
 
-The Vite dev server proxy (`vite.config.js`) forwards `/api/*` to `localhost:8000`, so the frontend calls relative `/api/` paths. In production the frontend build is served separately; the backend URL is set via `VITE_API_BASE_URL`.
+The Vite dev server proxy (`vite.config.js`) forwards `/api/*` to `localhost:8000`, so the frontend calls relative `/api/` paths. In production the frontend build is served separately; the backend URL is set via `VITE_API_URL`.
 
 ### Authentication
 
@@ -83,7 +84,8 @@ JWT tokens are stored in both **httpOnly cookies** (browser security) and return
 | `backend/main.py` | FastAPI app, router registration, CORS, `init_db()` call |
 | `backend/database.py` | SQLAlchemy engine, `Base`, `SessionLocal`, `init_db()` |
 | `backend/security.py` | `create_access_token`, `get_current_user` dependency |
-| `backend/services/adaptive_difficulty.py` | Per-domain difficulty scaling targeting 70–80% success rate (scale 1–10) |
+| `backend/schemas/` | Pydantic v2 request/response schemas for all 8 routers |
+| `backend/services/adaptive_difficulty.py` | Staircase difficulty: >80% success → +1, <50% → −1 (scale 1–10) |
 | `backend/services/session_planner.py` | Builds sessions from 2–3 domains, ≥2 exercise variants per domain |
 | `backend/services/brain_health_score.py` | Composite score: 60% cognitive average + 40% lifestyle |
 | `backend/services/streak_manager.py` | 36-hour streak window, UTC datetimes |
@@ -99,6 +101,10 @@ There are 8 routers: `auth`, `baseline`, `adaptive_baseline`, `sessions`, `progr
 | `src/hooks/useAuth.jsx` | Global auth state, login/logout, token management |
 | `src/api/client.js` | Axios instance; exports `authAPI`, domain-specific API objects |
 | `src/components/exercises/` | 6 exercise components (see below) |
+| `src/hooks/useDashboard.js` | Dashboard data fetching |
+| `src/hooks/useSession.js` | Session state management |
+| `src/hooks/useStreakData.js` | Streak data fetching |
+| `src/hooks/useGameHistory.js` | Per-exercise history |
 | `src/components/ui/FeedbackWidget.jsx` | Floating feedback button — overlaid on all authenticated pages |
 | `src/components/ui/PostGameFeedback.jsx` | Optional post-session feedback modal (in `SessionSummary`) |
 
@@ -135,7 +141,7 @@ Both POST to `/api/feedback`. The export endpoint `GET /api/feedback` is restric
 - `ADMIN_EMAILS` — comma-separated emails allowed to call the feedback export endpoint
 
 **Frontend (`frontend/.env`):**
-- `VITE_API_BASE_URL` — backend URL (not needed in dev; Vite proxy handles it)
+- `VITE_API_URL` — backend URL (not needed in dev; Vite proxy handles it)
 
 ## Feedback Agent Pipeline
 
