@@ -2,16 +2,6 @@ import React, { useEffect, useState } from 'react';
 import Card from '../ui/Card';
 import { useDashboard } from '../../hooks/useDashboard';
 
-const GAME_TYPE_LABELS = {
-  NBack: 'N-Back',
-  Stroop: 'Stroop',
-  GoNoGo: 'Go / No-Go',
-  DigitSpan: 'Digit Span',
-  CardMemory: 'Card Memory',
-  SymbolMatching: 'Symbol Matching',
-  VisualCategorisation: 'Visual Categorisation',
-};
-
 const TrendChart = ({ domain, title, data: externalData }) => {
   const { getDomainTrend, loading: dashLoading, error: dashError } = useDashboard();
   const [data, setData] = useState([]);
