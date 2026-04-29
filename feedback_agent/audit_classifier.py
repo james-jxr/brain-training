@@ -12,18 +12,21 @@ def classify_audit_findings(
     audit_findings: list[dict],
     coord_findings: list[dict],
     system_prompt: str,
-) -> list[dict]:
+) -> tuple[list[dict], dict]:
     """
     Send findings to audit_findings_agent for routing classification.
 
-    Returns a list of classification dicts:
-      {finding_id, table, routing, design_agent, rationale}
+    Returns a 2-tuple of:
+      - list of classification dicts, each containing:
+          {finding_id, table, routing, design_agent, rationale}
+      - usage dict containing token counts:
+          {input_tokens, output_tokens}
 
     routing: "ready_to_implement" | "needs_design_review" | "needs_human_review"
     design_agent: "functional_design" | "interaction_design" | null
     """
     if not audit_findings and not coord_findings:
-        return []
+        return [], {}
 
     entries = []
     for f in audit_findings:

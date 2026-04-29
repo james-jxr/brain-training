@@ -105,7 +105,6 @@ def submit_baseline(
 
     db.commit()
 
-    # Refresh baseline results to get the IDs
     for result in baseline_results:
         db.refresh(result)
 

@@ -277,3 +277,94 @@ Each entry is appended by the daily feedback pipeline task.
 **Test result:** PASSED (iteration 1): [33mBoth esbuild and oxc options were set. oxc options will be used and esbuild options will be ignored.[39m The following esbuild options were set: `{ jsx: 'automatic', jsxImportSource: undefined }`
 **PR:** (none)
 **Errors:** (none)
+
+## Run — 2026-04-29 (automated) [pipeline v3 — implementation]
+**Status:** completed
+**Issues implemented:**
+  - #102: Remove truncated dead comment in baseline.py
+  - #140: Remove unused useEffect import from BaselineTransition.jsx
+  - #110: Remove unused Badge import from SkillProfileScreen.jsx
+  - #121: Read BACKEND_URL from environment variable in fetch-feedback.py
+  - #106: Fix return type annotation and docstring in audit_classifier.py
+  - #88: Replace datetime.utcnow with datetime.now(timezone.utc) in model defaults
+  - #90: Fix lifestyle history filter to use logged_date instead of created_at
+  - #104: Extract MAX_TRIALS constant in DigitSpan.jsx, SymbolMatching.jsx, and Stroop.jsx
+**Issues failed:**
+  (none)
+**Issues deferred:**
+  - #195: Audit finding flagged for human review — involves an architectural decision about SPEC_CANDIDATES/DESIGN_CANDIDATES list structure that agents cannot make autonomously.
+  - #190: Naming refactor across 5+ files (synthesizer.py, audit_classifier.py, prioritiser.py, design_reviewer.py, pipeline_reviewer.py) — medium complexity touching pipeline internals; deferred to avoid compounding risk with selected backend fixes.
+  - #189: Duplicate constant consolidation in FreePlay.jsx — depends on shared constants file creation which overlaps with issue #188; deferred to keep run focused.
+  - #188: DRY refactor requiring creation of a new shared constants file and updates to Session.jsx, FreePlay.jsx, and BaselineGameWrapper.jsx — medium complexity, deferred to a dedicated run.
+  - #187: Magic numbers in brain_health_score.py — medium complexity, touches scoring logic; deferred to avoid compounding risk with other backend changes in this run.
+  - #186: Magic numbers in adaptive_difficulty.py — medium complexity; deferred to avoid compounding risk with other backend service changes.
+  - #184: Dead code in frontend/src/utils/scoring.js — has a known test blocker (scoring.test.js expects calculateBrainHealthScore to be a function) that has caused repeated failures; deferred until test suite issue is resolved.
+  - #183: Magic number in Stroop.jsx — overlaps with issue #104 which handles this in the same file; issue #104 is selected, making this redundant for this run.
+  - #182: Magic number in SymbolMatching.jsx — overlaps with issue #104 which handles this in the same file; issue #104 is selected, making this redundant for this run.
+  - #178: BottomNav.jsx style function extraction — overlaps with issue #118 which handles the same file; deferring to keep BottomNav changes cohesive in a future run.
+  - #177: Hardcoded hex in BaselinePrompt.jsx gradient — low severity design inconsistency; deferred to a dedicated design token cleanup run.
+  - #176: Hardcoded hex colors in Stroop.jsx colorMap — part of a broader design token cleanup needed across multiple exercise files; deferred to a dedicated run.
+  - #175: Hardcoded hex colors in VisualCategorisation.jsx — part of broader design token cleanup; deferred.
+  - #174: Hardcoded hex colors in CardMemoryGame.jsx — part of broader design token cleanup; deferred.
+  - #173: Hardcoded hex colors in GoNoGo.jsx — part of broader design token cleanup; deferred.
+  - #172: Hardcoded hex colors in DomainScoreCard.jsx — part of broader design token cleanup; deferred.
+  - #171: Hardcoded hex colors in BrainHealthGauge.jsx — overlaps with issues #97 and #98 which cover the same files; deferred pending those issues.
+  - #168: Naming fix in useGameHistory.js — overlaps with issue #130 which handles the same file's auth fix; deferred to avoid conflicting changes to the same file.
+  - #167: Dead/no-op logic in session_planner.py — requires careful inspection of the ternary condition to determine correct fix; deferred to avoid inadvertent behaviour change.
+  - #166: review_pipeline.py over 400 lines — high complexity refactor of pipeline internals; deferred to avoid compounding risk.
+  - #165: implementation_pipeline.py over 500 lines — high complexity refactor; deferred to its own dedicated run.
+  - #164: NBack.jsx complexity refactor — high complexity frontend change touching deeply nested useEffect chains; deferred.
+  - #163: VisualCategorisation.jsx 300+ line refactor — high complexity; has a known test failure (onComplete called 4 times instead of 1) that has blocked previous attempts; deferred.
+  - #162: GoNoGo.jsx refactor — medium-high complexity; deferred to avoid compounding risk.
+  - #154: Duplicate of issue #88 (datetime.utcnow in skill_assessment.py) — issue #88 is selected and covers this file.
+  - #152: Onboarding.jsx error handling — medium complexity UI change; deferred to allow backend fixes to land first.
+  - #146: Pipeline version upgrade — administrative/environmental issue requiring CLI command from Agent Central, not a code change.
+  - #145: CardMemoryGame.jsx large refactor — medium-high complexity; has had failed implementation attempts; deferred.
+  - #144: adaptive_baseline.py handler refactor — medium complexity; deferred to avoid compounding risk with backend changes in this run.
+  - #143: sessions.py log_exercise_result handler refactor — medium-high complexity; overlaps with issues #92, #93, #128 covering the same file; better handled together in a dedicated run.
+  - #142: baseline_number auto-increment in sessions.py — medium complexity with design decision resolved; overlaps with issue #99 covering same logic; deferred to coordinate with #99.
+  - #141: Duplicate of issue #110 (unused Badge import in SkillProfileScreen.jsx) — #110 is selected.
+  - #139: LifestyleLog.jsx error message improvement — low complexity but overlaps with issue #107 covering the same file's error handling; deferred to handle together.
+  - #138: FreePlay.jsx session-start error handling — medium complexity; has design decision from interaction design agent; deferred to keep this run focused on backend fixes.
+  - #137: feedback.py authentication change — medium complexity security fix; has had repeated failures; deferred to a dedicated run.
+  - #136: GAME_TYPE_LABELS consolidation — medium complexity with design decision resolved; failed-implementation label present; deferred.
+  - #135: getDifficultyColor/getGaugeColor deduplication — medium complexity; failed-implementation label present; has known test failures (scoring.test.js); deferred.
+  - #131: useStreakData.js auth fix — overlaps with issue #95 and #130 covering same pattern; all three should be handled together in one run.
+  - #130: useGameHistory.js auth fix — medium complexity; has had repeated failures with test suite issues (jest not defined); deferred until test infrastructure issues are resolved.
+  - #129: Dead calculateBrainHealthScore in scoring.js — has known test blocker (scoring.test.js expects the function); failed-implementation label; deferred.
+  - #128: Duplicate card_memory accuracy calculation in sessions.py — overlaps with issues #92 and #93 covering same file; deferred to handle all sessions.py refactors together.
+  - #120: formatMonthDay rename in StreakTracker.jsx — low priority naming change; deferred.
+  - #119: Duplicate of issue #88 which is selected — #88 covers all datetime.utcnow() model files including baseline_result.py.
+  - #118: BottomNav.jsx inline styles to CSS class — low complexity but has had repeated test failures (VisualCategorisation.test.jsx unrelated failure blocking CI); deferred.
+  - #117: account.py double-segment URL fix — failed-implementation label; medium risk as URL change could break frontend API calls; deferred.
+  - #112: Remove misleading if (response) guard in account.py — failed-implementation label (1 time); low complexity but overlaps with issue #117 in same file; deferred.
+  - #111: FreePlay.jsx silent catch blocks — failed-implementation label; overlaps with issue #138 covering broader FreePlay error handling; deferred to handle together.
+  - #109: Duplicate of issue #140 (unused useEffect in BaselineTransition.jsx) — #140 is selected.
+  - #108: Settings.jsx load error state — medium complexity UI change; failed-implementation label; deferred.
+  - #107: LifestyleLog.jsx loadTodayData error handling — medium complexity; failed-implementation label; deferred.
+  - #105: GAME_TYPE_LABELS dead code removal — failed-implementation label; has known test suite issues; deferred.
+  - #103: Export isRoundCorrect from BaselineGameWrapper.jsx — failed-implementation label; has known test failures (VisualCategorisation unrelated); deferred.
+  - #100: account.py double URL segment fix — duplicate of issue #117; same file, same fix; deferred with #117.
+  - #99: sessions.py baseline_number always set to 1 — failed-implementation label; medium complexity backend change; deferred.
+  - #98: DomainScoreCard.jsx getDifficultyColor hardcoded hex — overlaps with issue #135; deferred.
+  - #97: BrainHealthGauge.jsx hardcoded hex colors — overlaps with issue #135; deferred.
+  - #95: useStreakData.js localStorage vs sessionStorage fix — failed-implementation label; overlaps with issues #130 and #131; deferred to handle all auth hook fixes together.
+  - #94: useGameHistory.js localStorage vs sessionStorage fix — failed-implementation label; overlaps with issues #130 and #131; deferred.
+  - #93: log_exercise_result refactor in sessions.py — failed-implementation label; medium complexity; deferred.
+  - #92: Duplicate card_memory accuracy block in sessions.py — failed-implementation label; deferred.
+  - #91: brain_health_score.py datetime.utcnow and wrong filter field — medium complexity; overlaps with issue #90 (lifestyle filter fix is selected); deferred to follow-up run.
+  - #89: adaptive_baseline.py datetime.utcnow fix — failed-implementation label; similar to #88 which is selected; deferred to avoid conflicting changes.
+  - #75: CardMemoryGame mobile scroll bug — failed-implementation label; medium complexity responsive layout change; deferred.
+  - #69: Dashboard domain sessions count showing 0 — failed-implementation label; medium complexity requiring investigation of multiple files; deferred.
+  - #68: Progress page 401 error on game history — failed-implementation label; overlaps with useGameHistory.js auth fixes; deferred to handle with auth hook fixes.
+  - #67: CardMemory reveal correct card on wrong guess — failed-implementation label; medium complexity mechanic change; deferred.
+  - #66: DigitSpan staircase change — failed-implementation label; medium complexity mechanic change touching multiple files; deferred.
+  - #53: Guided breathing dashboard launch — failed-implementation label; medium-high complexity feature touching multiple files; design decisions provided but implementation is substantial.
+  - #49: Level up/down message on session results — failed-implementation label; medium-high complexity touching frontend and backend; deferred.
+  - #48: Card memory images change to letters/numbers — failed-implementation label; medium complexity UI change; deferred.
+  - #47: Visual categorisation three rounds restructure — failed-implementation label; high complexity mechanic change; deferred.
+  - #44: Adaptive difficulty not progressing — failed-implementation label; medium-high complexity bug in backend services; design decision provided but implementation is risky; deferred.
+**Spec version:** v1.1
+**Test result:** PASSED (iteration 1): [33mBoth esbuild and oxc options were set. oxc options will be used and esbuild options will be ignored.[39m The following esbuild options were set: `{ jsx: 'automatic', jsxImportSource: undefined }`
+**PR:** (none)
+**Errors:** (none)
