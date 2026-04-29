@@ -13,7 +13,7 @@ from backend.main import app
 from backend.database import SessionLocal, Base, engine
 from backend.models.domain_progress import DomainProgress
 
-# ─── Shared fixtures ────────────────────────────────────────────────────────────────────
+# ─── Shared fixtures ──────────────────────────────────────────────────────────────────────
 
 @pytest.fixture(scope="function")
 def test_db():
@@ -54,7 +54,7 @@ def _auth(token):
     return {"Authorization": f"Bearer {token}"}
 
 
-# ─── 1. Pure algorithm: applyAdaptiveStep ──────────────────────────────────────────────────────────────────────
+# ─── 1. Pure algorithm: applyAdaptiveStep ──────────────────────────────────────────────────────────────────────────────────────────────────────────
 # These tests import the exported JS-mirrored logic from the frontend wrapper.
 # Since that logic lives in a JS file we replicate the identical algorithm here
 # in pure Python so we can unit-test the spec without needing a JS runtime.
@@ -82,7 +82,7 @@ class TestAdaptiveAlgorithm:
     def _initial_state(self, level=1):
         return {"level": level, "consecutiveCorrect": 0}
 
-    # ── Level increases ───────────────────────────────────────────────────────────────────────────────────
+    # ── Level increases ──────────────────────────────────────────────────────────────────────────────────────────────────────────
 
     def test_one_correct_does_not_increase_level(self):
         state = _apply_adaptive_step(self._initial_state(1), correct=True)
@@ -111,7 +111,7 @@ class TestAdaptiveAlgorithm:
         s = _apply_adaptive_step(s, correct=True)
         assert s["level"] == 3
 
-    # ── Level decreases ────────────────────────────────────────────────────────────────────────────────
+    # ── Level decreases ────────────────────────────────────────────────────────────────────────────────────────────────────────
 
     def test_one_incorrect_decreases_level(self):
         s = _apply_adaptive_step(self._initial_state(2), correct=False)
@@ -132,7 +132,7 @@ class TestAdaptiveAlgorithm:
         s = _apply_adaptive_step(s, correct=True)    # → level 2
         assert s["level"] == 2
 
-    # ── Floor and ceiling ─────────────────────────────────────────────────────────────────────────────
+    # ── Floor and ceiling ──────────────────────────────────────────────────────────────────────────────────────────────────────
 
     def test_floor_at_level_1(self):
         s = _apply_adaptive_step(self._initial_state(1), correct=False)
@@ -144,7 +144,7 @@ class TestAdaptiveAlgorithm:
         s = _apply_adaptive_step(s, correct=True)
         assert s["level"] == 3  # can't go above 3
 
-    # ── Convergence simulation ────────────────────────────────────────────────────────────────────────────────
+    # ── Convergence simulation ────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
     def test_all_correct_converges_to_ceiling(self):
         s = self._initial_state(1)
@@ -167,7 +167,7 @@ class TestAdaptiveAlgorithm:
         assert s["level"] <= 2
 
 
-# ─── 2. API: GET /api/adaptive-baseline/status ───────────────────────────────────────────────────────────────────────
+# ─── 2. API: GET /api/adaptive-baseline/status ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 class TestAdaptiveBaselineStatus:
 
@@ -201,7 +201,7 @@ class TestAdaptiveBaselineStatus:
         assert keys == {"nback", "stroop"}
 
 
-# ─── 3. API: POST /api/adaptive-baseline/complete ───────────────────────────────────────────────────────────────────────
+# ─── 3. API: POST /api/adaptive-baseline/complete ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 class TestAdaptiveBaselineComplete:
 
@@ -324,7 +324,7 @@ class TestAdaptiveBaselineComplete:
         profile = res.json()["profile"]
         assert profile[0]["game_name"] == "Count Back Match"
 
-    # ── Isolation: different users have separate profiles ─────────────────────────────────
+    # ── Isolation: different users have separate profiles ────────────────────
 
     def test_users_have_separate_profiles(self, client):
         token_a = _register_and_token(client, "a@x.com", "userA")
@@ -340,7 +340,7 @@ class TestAdaptiveBaselineComplete:
         assert profile_b["profile"][0]["assessed_level"] == 1
 
 
-# ─── 4. DomainProgress seeding ──────────────────────────────────────────────────────────────────────────────────
+# ─── 4. DomainProgress seeding ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 class TestDomainProgressSeeding:
     """Verify that completing the adaptive baseline seeds DomainProgress rows."""

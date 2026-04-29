@@ -547,3 +547,80 @@ Each entry is appended by the daily feedback pipeline task.
 **Test result:** PASSED (iteration 1):     at [90mfile:///home/runner/work/brain-training/brain-training/frontend/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2955:64
 **PR:** (none)
 **Errors:** (none)
+
+## Run — 2026-04-29 (automated) [pipeline v3 — implementation]
+**Status:** completed
+**Issues implemented:**
+  - #100: Fix double 'account' path segment in account router
+  - #119: Replace deprecated datetime.utcnow() with datetime.now(timezone.utc) across backend models
+  - #94: Fix useGameHistory hook to use shared axios client with correct auth token
+  - #130: Fix useGameHistory to use shared axios client (combined with #94)
+  - #131: Fix useStreakData hook to use shared axios client with correct auth token
+**Issues failed:**
+  (none)
+**Issues deferred:**
+  - #195: Technical debt — SPEC_CANDIDATES/DESIGN_CANDIDATES simplification in review_pipeline.py. Low severity; pipeline agent files deferred to keep this run focused on high-impact bug fixes.
+  - #190: Naming violation — renaming `raw` variable across multiple files (synthesizer.py, audit_classifier.py, prioritiser.py, design_reviewer.py, pipeline_reviewer.py). Medium complexity touching multiple pipeline files; deferred to avoid broad changes alongside the selected items.
+  - #189: DRY violation — BASELINE_LEVEL_TO_DIFFICULTY constant duplicated between FreePlay.jsx and Session.jsx. Depends on/overlaps with issue #188 (same finding); should be done together. Deferred to keep this run focused.
+  - #188: DRY violation — BASELINE_LEVEL_TO_DIFFICULTY defined three times across BaselineGameWrapper.jsx, Session.jsx, FreePlay.jsx. Medium complexity (touches 3 files and creates a new shared constants file). Deferred — can be a standalone run.
+  - #187: Magic numbers in brain_health_score.py. Medium complexity; safe to defer — no functional impact, just constants cleanup.
+  - #186: Magic numbers in adaptive_difficulty.py. Medium complexity; safe to defer.
+  - #184: Frontend scoring.js dead code / duplicate formula. Related to issue #129 which has a failed-implementation label and recurring test failures around scoring.test.js. Deferring until the scoring.test.js test environment issue is resolved.
+  - #183: Magic number `8` in Stroop.jsx. Low severity; deferred to keep run focused.
+  - #182: Magic number `8` in SymbolMatching.jsx. Low severity; deferred to keep run focused.
+  - #178: Duplicate inline style objects in BottomNav.jsx — extract to navLinkStyle(isActive) function. Low complexity but overlaps with issue #118 (same file, same finding). Deferred to avoid conflict.
+  - #177: Hardcoded #8b5cf6 in BaselinePrompt.jsx gradient. Low severity design token fix; deferred.
+  - #176: Hardcoded hex colors in Stroop.jsx colorMap. Low severity; deferred.
+  - #175: Hardcoded hex colors in VisualCategorisation.jsx. Low severity; deferred.
+  - #174: Hardcoded hex colors in CardMemoryGame.jsx. Low severity; deferred.
+  - #173: Hardcoded hex colors in GoNoGo.jsx. Low severity; deferred.
+  - #172: Hardcoded hex colors in DomainScoreCard.jsx — duplicate of issue #171 finding. Deferred.
+  - #171: Hardcoded hex colors in BrainHealthGauge.jsx — overlaps with issues #97, #98, #135 which all touch the same files. Deferred until the consolidated scoring/color token work is sequenced.
+  - #168: Naming issue in useGameHistory.js (variable `data`) — the substantive auth bug fix is covered by issues #94/#130. Renaming can be done in the same pass.
+  - #167: Dead/no-op conditional logic in SessionPlannerService.plan_session. Low severity; deferred.
+  - #166: review_pipeline.py over 400 lines — extract helper functions. High complexity refactor of pipeline code; deferred to avoid compounding risk.
+  - #165: implementation_pipeline.py over 500 lines — extract helper functions. High complexity refactor of pipeline code; deferred.
+  - #164: NBack.jsx complexity — extract sub-components. High complexity frontend refactor; deferred.
+  - #163: VisualCategorisation.jsx complexity — extract sub-components. High complexity; deferred.
+  - #162: GoNoGo.jsx complexity — extract sub-components. High complexity; deferred.
+  - #154: datetime.utcnow in skill_assessment.py — covered by the broader fix in issue #119 which includes this file.
+  - #152: Missing error handling in Onboarding.jsx handleComplete. Medium complexity; deferred.
+  - #146: Pipeline version upgrade — administrative/environmental action (`python orchestrator.py upgrade`), not a code change. Not actionable by build agent.
+  - #145: CardMemoryGame.jsx complexity refactor — extract generateCards, initRound, performFlipAndShuffle. Medium complexity; deferred.
+  - #144: adaptive_baseline.py handler complexity — extract GAME_DOMAIN_MAP and DomainProgress seeding. Medium complexity; deferred.
+  - #143: sessions.py log_exercise_result handler over 40 lines — overlaps with issues #92/#93/#128. Deferred to sequence with the duplicate logic cleanup.
+  - #142: baseline_number hardcoded to 1 in sessions.py — has multiple prior failed implementations including test environment issues (jest not defined). The test environment root cause should be fixed before retrying.
+  - #138: FreePlay.jsx missing error handling on sessionAPI.startSession() failure. Medium complexity with UX design spec. Deferred.
+  - #137: feedback.py unauthenticated submission — requires changing authentication model. Medium-high risk; deferred.
+  - #136: GAME_TYPE_LABELS constant consolidation — has failed-implementation label and recurring scoring.test.js failures. Deferred until scoring.test.js environment is fixed.
+  - #135: getDifficultyColor/getGaugeColor consolidation — has failed-implementation label and recurring scoring.test.js failures blocking tests. Deferred.
+  - #129: calculateBrainHealthScore dead code removal — has failed-implementation label and recurring scoring.test.js TypeError. The test itself is broken (imports a function that no longer exists after deletion). Needs test file updated simultaneously; deferred.
+  - #128: Duplicate card_memory accuracy calculation in sessions.py — overlaps with #92/#93/#143. Should be done as a single cohesive refactor of sessions.py. Deferred.
+  - #120: formatMonthDay rename in StreakTracker.jsx. Low severity rename; deferred.
+  - #118: BottomNav.jsx inline styles — extract to CSS class. Has failed-implementation history with unrelated VisualCategorisation test failures blocking it. Deferred.
+  - #111: FreePlay.jsx silent catch blocks — add console.error. Has failed-implementation label. Low severity; deferred.
+  - #108: Settings.jsx silent error on loadSettings failure — show error card. Has failed-implementation label. Medium complexity; deferred.
+  - #107: LifestyleLog.jsx silent catch in loadTodayData — show inline warning banner. Has failed-implementation label. Medium complexity; deferred.
+  - #105: Remove unused GAME_TYPE_LABELS dead code from TrendChart.jsx and Progress.jsx. Has failed-implementation label with recurring jest-not-defined test failures. Deferred until test environment is confirmed fixed.
+  - #103: Export isRoundCorrect from BaselineGameWrapper.jsx. Has multiple failed-implementation attempts including backend test failures unrelated to the change. Deferred.
+  - #99: sessions.py start_session baseline_number always set to 1 — has failed-implementation label. Medium-high risk (touches baseline session logic). Deferred.
+  - #98: DomainScoreCard.jsx getDifficultyColor hardcoded hex — overlaps with #135/#171 color token consolidation. Deferred.
+  - #97: BrainHealthGauge.jsx getGaugeColor hardcoded hex — overlaps with #135/#171 color token consolidation. Deferred.
+  - #95: useStreakData.js localStorage/fetch issue — same as issue #131 which is selected. This duplicate finding is resolved by the #131 fix.
+  - #93: log_exercise_result over 40 lines — overlaps with #92/#128/#143. Should be done as cohesive sessions.py refactor. Has failed-implementation label. Deferred.
+  - #92: Duplicate card_memory accuracy calculation — has failed-implementation label. Overlaps with #93/#128/#143. Deferred for cohesive sessions.py refactor.
+  - #91: brain_health_score.py uses datetime.utcnow() for lifestyle filter — has failed-implementation label. Should use logged_date instead of created_at. Deferred.
+  - #75: CardMemoryGame mobile scroll fix — has multiple failed implementations. Previous failures included pytest missing (now fixed per comment) but most recent failure was empty response. Medium complexity. Deferred.
+  - #69: Dashboard domain boxes show 0 sessions — has multiple failed implementations. Needs Dashboard.jsx, client.js, and progress.py examined together. Deferred.
+  - #68: Progress page 401 error on game history — root cause is the useGameHistory.js auth bug fixed by issues #94/#130. Should be resolved as a side-effect of those fixes.
+  - #67: CardMemory reveal correct card on wrong guess — has multiple failed implementations. Medium complexity mechanic change. Deferred.
+  - #66: DigitSpan staircase mechanic change — has multiple failed implementations. Medium-high complexity touching frontend exercise component and backend adaptive difficulty. Deferred.
+  - #53: Guided breathing session from Dashboard — has failed-implementation label and complex scope (lifestyle logging integration, new session type). High complexity. Deferred.
+  - #49: Level Up/Down message on session results — has multiple failed implementations including test failures with adjust_difficulty_in_session signature mismatch. High complexity touching adaptive difficulty service. Deferred.
+  - #48: CardMemory more interesting images (letters/numbers) — has failed-implementation label. Medium complexity design change. Deferred.
+  - #47: Visual Categorisation three rounds with new rules — has failed-implementation label. High complexity mechanic change. Deferred.
+  - #44: Adaptive difficulty not progressing — has multiple failed implementations including adjust_difficulty_in_session signature mismatch suggesting a prior partial change broke the function signature. High risk. Deferred until signature issue is investigated.
+**Spec version:** v1.2
+**Test result:** PASSED (iteration 1):     at [90mfile:///home/runner/work/brain-training/brain-training/frontend/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2955:64
+**PR:** (none)
+**Errors:** (none)

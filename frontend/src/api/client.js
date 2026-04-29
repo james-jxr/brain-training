@@ -22,7 +22,7 @@ client.interceptors.response.use(
   (response) => response,
   (error) => {
     const isAuthCheck = error.config?.url?.includes('/api/auth/me');
-    const isPublicPage = ['/login', '/register', '/'].includes(window.location.pathname);
+    const isPublicPage = ['/', '/login', '/register'].includes(window.location.pathname);
     if (error.response?.status === 401 && !isAuthCheck && !isPublicPage) {
       sessionStorage.removeItem('access_token');
       window.location.href = '/login';
@@ -66,6 +66,10 @@ export const progressAPI = {
     client.get('/api/progress/streak'),
   getDomainTrend: (domain) =>
     client.get(`/api/progress/trend/${domain}`),
+  getGameHistory: () =>
+    client.get('/api/progress/game-history'),
+  getStreakHistory: () =>
+    client.get('/api/progress/streak/history'),
 };
 
 export const lifestyleAPI = {

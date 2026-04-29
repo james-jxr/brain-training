@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-
-const API_BASE = import.meta.env.VITE_API_URL || '';
+import { progressAPI } from '../api/client';
 
 export function useGameHistory() {
   const [gameHistory, setGameHistory] = useState(null);
@@ -12,20 +11,8 @@ export function useGameHistory() {
       try {
         setLoading(true);
         setError(null);
-        const token = localStorage.getItem('token');
-        const response = await fetch(`${API_BASE}/api/progress/game-history`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch game history: ${response.status}`);
-        }
-
-        const data = await response.json();
-        setGameHistory(data.games);
+        const gameHistoryResponse = await progressAPI.getGameHistory();
+        setGameHistory(gameHistoryResponse.data.games);
       } catch (err) {
         setError(err.message);
       } finally {
