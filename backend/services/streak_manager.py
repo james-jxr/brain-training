@@ -2,6 +2,9 @@ from sqlalchemy.orm import Session
 from backend.models import Streak
 from datetime import datetime, timedelta, timezone
 
+SECONDS_PER_HOUR = 3600
+STREAK_EXPIRY_HOURS = 36
+
 class StreakManagerService:
     @staticmethod
     def get_or_create_streak(db: Session, user_id: int) -> Streak:
@@ -27,9 +30,9 @@ class StreakManagerService:
             if last_session.tzinfo is None:
                 last_session = last_session.replace(tzinfo=timezone.utc)
             time_since_last = now - last_session
-            hours_since = time_since_last.total_seconds() / 3600
+            hours_since = time_since_last.total_seconds() / SECONDS_PER_HOUR
 
-            if hours_since > 36:
+            if hours_since > STREAK_EXPIRY_HOURS:
                 streak.current_streak = 1
             elif last_session.date() == now.date():
                 pass
@@ -59,9 +62,9 @@ class StreakManagerService:
         if last_session.tzinfo is None:
             last_session = last_session.replace(tzinfo=timezone.utc)
         time_since_last = now - last_session
-        hours_since = time_since_last.total_seconds() / 3600
+        hours_since = time_since_last.total_seconds() / SECONDS_PER_HOUR
 
-        if hours_since > 36:
+        if hours_since > STREAK_EXPIRY_HOURS:
             return 0
 
         return streak.current_streak

@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from backend.models import DomainProgress, LifestyleLog
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone, date
 
 class BrainHealthScoreService:
     @staticmethod
@@ -27,11 +27,11 @@ class BrainHealthScoreService:
 
     @staticmethod
     def calculate_lifestyle_score(db: Session, user_id: int) -> float:
-        seven_days_ago = datetime.utcnow() - timedelta(days=7)
+        seven_days_ago = date.today() - timedelta(days=7)
         logs = db.query(LifestyleLog).filter(
             and_(
                 LifestyleLog.user_id == user_id,
-                LifestyleLog.created_at >= seven_days_ago
+                LifestyleLog.logged_date >= seven_days_ago
             )
         ).all()
 

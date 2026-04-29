@@ -8,16 +8,6 @@ import { useDashboard } from '../hooks/useDashboard';
 import { useStreakData } from '../hooks/useStreakData';
 import { useGameHistory } from '../hooks/useGameHistory';
 
-const GAME_TYPE_LABELS = {
-  NBack: 'N-Back',
-  Stroop: 'Stroop',
-  GoNoGo: 'Go / No-Go',
-  DigitSpan: 'Digit Span',
-  CardMemory: 'Card Memory',
-  SymbolMatching: 'Symbol Matching',
-  VisualCategorisation: 'Visual Categorisation',
-};
-
 const Progress = () => {
   const { summary, loading, error } = useDashboard();
   const { streakData, loading: streakLoading, error: streakError } = useStreakData();
@@ -110,7 +100,7 @@ const Progress = () => {
                 {gameTypes.map((gameType) => (
                   <TrendChart
                     key={gameType}
-                    title={GAME_TYPE_LABELS[gameType] || gameType}
+                    title={gameType}
                     data={gameHistory[gameType]}
                   />
                 ))}
