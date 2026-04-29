@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 from backend.database import Base
 
 
@@ -17,7 +17,7 @@ class SkillAssessment(Base):
     game_key = Column(String, nullable=False)
     # 1 = Easy, 2 = Medium, 3 = Hard
     assessed_level = Column(Integer, nullable=False, default=1)
-    assessed_at = Column(DateTime, default=datetime.utcnow)
+    assessed_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     baseline_count = Column(Integer, nullable=False, default=1)
 
     user = relationship("User", back_populates="skill_assessments")

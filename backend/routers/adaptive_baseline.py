@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, timezone
 
 from backend.database import get_db
 from backend.models import User
@@ -95,7 +95,7 @@ def complete_adaptive_baseline(
 
         if existing:
             existing.assessed_level = result.assessed_level
-            existing.assessed_at = datetime.utcnow()
+            existing.assessed_at = datetime.now(timezone.utc)
             existing.baseline_count += 1
             updated_assessments.append(existing)
         else:
@@ -103,7 +103,7 @@ def complete_adaptive_baseline(
                 user_id=current_user.id,
                 game_key=result.game_key,
                 assessed_level=result.assessed_level,
-                assessed_at=datetime.utcnow(),
+                assessed_at=datetime.now(timezone.utc),
                 baseline_count=1,
             )
             db.add(new_assessment)

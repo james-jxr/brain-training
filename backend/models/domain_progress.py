@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Float, UniqueConstraint
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 from backend.database import Base
 
 class DomainProgress(Base):
@@ -16,6 +16,6 @@ class DomainProgress(Base):
     last_score = Column(Float, nullable=True)
     total_attempts = Column(Integer, default=0)
     total_correct = Column(Integer, default=0)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     user = relationship("User", back_populates="domain_progress")

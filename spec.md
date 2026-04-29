@@ -1,7 +1,7 @@
 # App Specification: Brain Training App
 
-**Spec Version:** v1.0
-**Date:** 2026-04-21
+**Spec Version:** v1.1
+**Date:** 2026-04-29
 **Status:** Approved
 **Brief Reference:** Functional Requirements v1.0 (March 2026) + Design System v1 + Feedback Brief feedback-v1.0
 
@@ -23,6 +23,7 @@
 | v0.8 | 2026-04-14 | Dashboard responsive layout: sidebar hidden on mobile, BottomNav shown, all grid columns stack to single-column, padding reduced; §12 Responsive Design added |
 | v0.9 | 2026-04-15 | Stroop result computation extracted into exported pure function `computeStroopResult`; frontend test suite expanded with 7 new Stroop unit tests; §11c test counts updated |
 | v1.0 | 2026-04-21 | Password minimum length (8 characters) enforced on registration and account update via Pydantic validators. Feedback export endpoint (`GET /api/feedback`) is now admin-only (restricted to emails in `ADMIN_EMAILS` setting; returns 403 otherwise). Auth token storage migrated from `localStorage` to `sessionStorage` in `useAuth.jsx`; duplicate `useAuth.js` file removed. `BottomNav` no longer imports `useAuth`. `GoNoGoLegacy.jsx` retired and removed. `DomainProgress` null-safety fix: `total_attempts` and `total_correct` now coerce `None` to 0 before incrementing. Streak manager migrated to timezone-aware datetimes (`timezone.utc`); same-day sessions no longer increment streak count. `VisualCategorisation` internal helper renamed from `pick` to `pickRandom` (no user-facing change). `LifestyleLog` now logs errors to console on failed today-data fetch. |
+| v1.1 | 2026-04-29 | Mindfulness exercise added (guided breathing, 2-minute session, no scoring, 10 breath cycles). Session planner now always includes mindfulness as a third domain in every planned session. Within-session adaptive difficulty staircase rule added (`adjust_difficulty_in_session`): difficulty increases by 1 above 80%, decreases by 1 below 50%, clamped to [1, 10]; `adjusted_difficulty` returned on exercise attempt response. `FeedbackEntry` gains `project_id` field (default "brain-training"). `UserResponse` schema gains `has_completed_baseline` field. New `GET /api/progress/streak/history` endpoint returns 14-day session completion history. New `GET /api/progress/game-history` endpoint returns per-game score history (last 20 attempts per exercise type). `TrendChart` component upgraded to bar chart visualisation with external data support and `GAME_TYPE_LABELS` map. `useGameHistory` and `useStreakData` hooks added. `StreakTracker` component added. Auth token storage confirmed as `sessionStorage` throughout axios client. Baseline tests added (`test_baseline.py`) covering `has_completed_baseline` flag. Mindfulness unit tests added (`Mindfulness.test.jsx`). |
 
 ---
 
@@ -74,23 +75,24 @@ The Brain Training App is a science-grounded cognitive training web application 
 ## 4. MVP Feature List (In Scope)
 
 1. **User registration and login** — email + password authentication with explicit GDPR/CCPA consent at registration. Password reset via email. **Passwords must be at least 8 characters** — enforced at both registration and account password update; shorter passwords are rejected with a validation error.
-2. **Baseline assessment** — covers all five cognitive domains (Processing Speed, Working Memory, Attention & Inhibitory Control, Executive Function, Episodic Memory). Takes approximately 10 minutes. Results set adaptive difficulty starting points per domain. Completed once at onboarding, then repeatable every 6 months. Each re-baseline resets the current-period improvement reference and recalibrates difficulty; the original baseline is always retained for long-term comparison. The dashboard notifies users when they become eligible for re-baseline.
-3. **Daily training session** — a guided 15–20 minute session covering exercises from 2–3 domains per session. Sessions are interleaved (not blocked on a single domain). Each session contains a minimum of 2 task variants per domain visited. On completion, the user sees a session summary screen.
-4. **Adaptive difficulty per domain** — each domain tracks a rolling performance score (accuracy + speed) and adjusts task difficulty up or down to maintain a 70–80% success rate target. Difficulty cannot plateau — the system must continue to increase challenge for consistently high-performing users.
-5. **Cognitive exercise library (v1 launch)** — two concrete task variants per domain across 3 domains at launch. Executive Function and Episodic Memory are deferred to v1.1. **Symbol matching is currently hidden** pending replacement with a new task variant (see §11 Q7). `GoNoGoLegacy.jsx` has been retired and removed; the current Go/No-Go implementation lives in `GoNoGo.jsx`:
+2. **Baseline assessment** — covers all five cognitive domains (Processing Speed, Working Memory, Attention & Inhibitory Control, Executive Function, Episodic Memory). Takes approximately 10 minutes. Results set adaptive difficulty starting points per domain. Completed once at onboarding, then repeatable every 6 months. Each re-baseline resets the current-period improvement reference and recalibrates difficulty; the original baseline is always retained for long-term comparison. The dashboard notifies users when they become eligible for re-baseline. Once a user submits baseline results, the `has_completed_baseline` flag on their user profile is set to `true`.
+3. **Daily training session** — a guided 15–20 minute session covering exercises from 2–3 domains per session. Sessions are interleaved (not blocked on a single domain). Each session contains a minimum of 2 task variants per domain visited. Every planned session includes a mindfulness (guided breathing) exercise in addition to the two cognitive domains selected by the session planner. On completion, the user sees a session summary screen.
+4. **Adaptive difficulty per domain** — each domain tracks a rolling performance score (accuracy + speed) and adjusts task difficulty up or down to maintain a 70–80% success rate target. Difficulty cannot plateau — the system must continue to increase challenge for consistently high-performing users. **Within-session staircase rule:** after each exercise attempt the backend computes an `adjusted_difficulty` for the next exercise of the same type using a simple staircase: if the accuracy score exceeds 80%, difficulty increases by 1; if below 50%, difficulty decreases by 1; otherwise it stays the same. The result is clamped to [1, 10] and returned in the exercise attempt response as `adjusted_difficulty`.
+5. **Cognitive exercise library (v1 launch)** — two concrete task variants per domain across 3 domains at launch, plus a mindfulness exercise included in every session. Executive Function and Episodic Memory are deferred to v1.1. **Symbol matching is currently hidden** pending replacement with a new task variant (see §11 Q7). `GoNoGoLegacy.jsx` has been retired and removed; the current Go/No-Go implementation lives in `GoNoGo.jsx`:
    - *Processing Speed:* ~~Symbol matching task~~ *(hidden, replacement pending)*; Card memory task
    - *Working Memory:* N-back sequence task; digit span task
    - *Attention & Inhibitory Control:* Go/No-go reaction task; Stroop colour-word interference task
    - *All domains (baseline + free-play):* Shape Sort — abstract rule-induction task where users infer a sorting rule from examples (see §11a for design details)
+   - *Mindfulness (every session):* Guided breathing exercise — a 2-minute session of 10 breath cycles (inhale 4s → hold 4s → exhale 4s). No accuracy score is produced. The user is shown the current breath phase label and an animated circle. On completion the user optionally rates how they feel (1–5 scale) before dismissing. The feeling rating is submitted alongside the completion result. Mindfulness is treated as a no-scoring exercise by the session planner and is not factored into domain accuracy calculations.
 6. **Post-session summary** — displayed after every session: domains trained, performance vs. previous session per domain, current streak, and a one-line science-grounded observation about their result. The summary displays the user's **Accuracy** score (labelled as such) with a sub-label showing correct trials out of total trials attempted (e.g. "7 correct out of 10 trials").
 7. **Streak and consistency tracking** — daily streak counter visible on the dashboard and post-session screen. Streak resets if no session is completed within a 36-hour window (allowing for timezone flexibility). Multiple sessions on the same calendar day do not increment the streak beyond 1 for that day. Total cumulative training time displayed prominently with a milestone marker at 20 hours.
-8. **Progress dashboard** — the main logged-in home screen showing: current streak, cumulative training time, per-domain performance scores (separate, not collapsed), a 30-day trend graph per domain, Brain Health Score, and lifestyle summary.
+8. **Progress dashboard** — the main logged-in home screen showing: current streak, cumulative training time, per-domain performance scores (separate, not collapsed), a 30-day trend graph per domain, Brain Health Score, and lifestyle summary. The `TrendChart` component renders data as a bar chart (one bar per session, height proportional to score relative to the session maximum). Charts can be driven either by domain (fetching from `/api/progress/:domain`) or by externally supplied data arrays. The `StreakTracker` component displays a 14-day calendar view of session completion using data from `/api/progress/streak/history`.
 9. **Brain Health Score** — a composite score (0–100) derived from cognitive performance across all five domains (60% weight) and lifestyle inputs (40% weight: exercise, sleep, stress, mood). Recalculated after each session and after each lifestyle log entry. Score is accompanied by a breakdown showing the contribution of each factor.
 10. **Lifestyle habit logging** — a daily log capturing five lifestyle factors: physical activity (minutes of aerobic exercise), sleep (hours + quality rating 1–5), social engagement (yes/no interaction today), stress level (1–5), and mood (1–5). Accessible from the dashboard. Users are prompted to log after each training session.
 11. **About the Science section** — a static informational section explaining: the five cognitive domains and their evidence base, the near-transfer vs. far-transfer distinction, why 20+ hours matters, the role of lifestyle factors, and the research sources. Includes a clear statement of what the app can and cannot claim.
 12. **Account settings** — ability to update email, password (minimum 8 characters enforced), notification time preference (daily reminder), and delete account (with data erasure per GDPR).
 13. **Free-play mode** — users can launch any individual exercise directly from the dashboard Practice section. Starting a free-play session creates a real session, logs the result against domain progress, and navigates to the session summary on completion. Difficulty defaults to the user's current baseline-seeded level for that domain, or 1 if no baseline exists. All free-play results count towards cumulative training time and domain progress scores.
-14. **In-app feedback capture** — users can submit free-text feedback from any authenticated page via a persistent floating button (bottom-right corner). Tapping the button opens a small modal with a text area (max 1000 characters) and a Submit button. On submit, a brief "Thank you for your feedback" confirmation appears and auto-dismisses. Additionally, a feedback prompt appears on the Session Summary screen after every completed training session — this is optional and includes a Skip button so it never blocks access to session results. All feedback is stored server-side tagged with the page context and, where applicable, the session ID.
+14. **In-app feedback capture** — users can submit free-text feedback from any authenticated page via a persistent floating button (bottom-right corner). Tapping the button opens a small modal with a text area (max 1000 characters) and a Submit button. On submit, a brief "Thank you for your feedback" confirmation appears and auto-dismisses. Additionally, a feedback prompt appears on the Session Summary screen after every completed training session — this is optional and includes a Skip button so it never blocks access to session results. All feedback is stored server-side tagged with the page context and, where applicable, the session ID. Every feedback entry is tagged with `project_id = "brain-training"` server-side.
 
 ---
 
@@ -126,6 +128,7 @@ The Brain Training App is a science-grounded cognitive training web application 
 | consent_given_at | datetime | Required — must be set at registration |
 | notification_time | time | Optional, default 09:00 |
 | baseline_completed | boolean | Default false |
+| has_completed_baseline | boolean | Default false — set to true when baseline results are submitted via `/api/baseline/submit`; exposed on `GET /api/auth/me` response |
 | total_training_seconds | integer | Default 0 |
 | next_baseline_eligible_date | date | Nullable; set to 6 months after each baseline completion |
 
@@ -160,13 +163,13 @@ The Brain Training App is a science-grounded cognitive training web application 
 |---|---|---|
 | id | UUID | Primary key |
 | session_id | UUID | Foreign key → Session, required |
-| domain | enum | One of: processing_speed, working_memory, attention |
-| exercise_type | string | One of: symbol_matching, visual_categorisation, n_back, digit_span, go_no_go, stroop, card_memory |
-| difficulty_level | integer | 1–10 |
-| trials_presented | integer | Required |
-| trials_correct | integer | Required |
-| avg_response_ms | integer | Average response time in milliseconds |
-| score | float | 0.0–100.0, computed from accuracy + speed |
+| domain | enum | One of: processing_speed, working_memory, attention, mindfulness |
+| exercise_type | string | One of: symbol_matching, visual_categorisation, n_back, digit_span, go_no_go, stroop, card_memory, mindfulness |
+| difficulty_level | integer | 1–10; mindfulness attempts always use difficulty 1 |
+| trials_presented | integer | Required; 0 for mindfulness |
+| trials_correct | integer | Required; 0 for mindfulness |
+| avg_response_ms | integer | Average response time in milliseconds; nullable for mindfulness |
+| score | float | 0.0–100.0, computed from accuracy + speed; null for mindfulness (no-scoring exercise) |
 
 ### Entity: DomainProgress
 
@@ -205,6 +208,7 @@ The Brain Training App is a science-grounded cognitive training web application 
 | page_context | string | Required, max 100 chars — identifies the page or surface where feedback was submitted (e.g. "dashboard", "session_summary", "progress", "lifestyle_log", "settings") |
 | session_id | UUID | Nullable, foreign key → Session — only set when submitted from the post-game prompt on SessionSummary |
 | feedback_text | string | Required, max 1000 chars |
+| project_id | string | Required, default "brain-training" — set server-side, not user-supplied |
 | created_at | datetime | Required, auto-set |
 | processed | boolean | Default false — set to true after the autonomous feedback agent processes the entry |
 
@@ -242,6 +246,7 @@ The Brain Training App is a science-grounded cognitive training web application 
 | POST | /api/auth/logout | Invalidate session token | Y |
 | POST | /api/auth/reset-password | Request password reset email | N |
 | POST | /api/auth/reset-password/confirm | Confirm reset with token + new password | N |
+| GET | /api/auth/me | Returns current user profile including `has_completed_baseline` | Y |
 
 ### Onboarding & Baseline
 
@@ -249,6 +254,7 @@ The Brain Training App is a science-grounded cognitive training web application 
 |---|---|---|---|
 | GET | /api/adaptive-baseline/status | Returns whether baseline is complete and per-game SkillAssessment profile | Y |
 | POST | /api/adaptive-baseline/complete | Submit adaptive baseline results (array of `{ game_key, assessed_level }`); seeds DomainProgress | Y |
+| POST | /api/baseline/submit | Submit domain baseline scores (array of `{ domain, score }`); sets `has_completed_baseline = true` on the user | Y |
 
 ### Training Sessions
 
@@ -256,7 +262,7 @@ The Brain Training App is a science-grounded cognitive training web application 
 |---|---|---|---|
 | POST | /api/sessions/start | Begin a new training session; returns first exercise | Y |
 | GET | /api/sessions/:id/next | Get next exercise in the session | Y |
-| POST | /api/sessions/:id/attempt | Submit result for one exercise attempt | Y |
+| POST | /api/sessions/:id/attempt | Submit result for one exercise attempt. Response includes `accuracy_score` (rounded to 2 dp) and `adjusted_difficulty` (integer 1–10, computed by within-session staircase rule) | Y |
 | POST | /api/sessions/:id/complete | Mark session complete; returns summary | Y |
 | GET | /api/sessions/history | List past sessions (paginated, 20 per page) | Y |
 
@@ -271,6 +277,8 @@ Free-play uses the same session API as structured training. The frontend (`FreeP
 | GET | /api/dashboard | Returns streak, total time, Brain Health Score, domain scores, lifestyle summary | Y |
 | GET | /api/progress/:domain | 30-day trend data for one domain | Y |
 | GET | /api/progress/brain-health-score | Score breakdown (cognitive + lifestyle factors) | Y |
+| GET | /api/progress/streak/history | Returns `current_streak`, `longest_streak`, and a `days` array covering the last 14 calendar days. Each day entry: `{ date: ISO string, completed: boolean, is_today: boolean }`. Used by the `StreakTracker` component. | Y |
+| GET | /api/progress/game-history | Returns per-exercise-type score history. Response: `{ games: { [exercise_type]: [{ date, score, difficulty }] } }`. Last 20 attempts per exercise type, oldest-first. Score is computed from `trials_correct / trials_presented * 100` where available, else from `attempt.score`, else 0. Used by the `useGameHistory` hook. | Y |
 
 ### Lifestyle Logging
 
@@ -292,7 +300,7 @@ Free-play uses the same session API as structured training. The frontend (`FreeP
 
 | Method | Path | Description | Auth required? |
 |---|---|---|---|
-| POST | /api/feedback | Submit free-text feedback. Body: `{ page_context: string, feedback_text: string, session_id?: string }`. Response: `{ id: string, created_at: datetime }` | Y |
+| POST | /api/feedback | Submit free-text feedback. Body: `{ page_context: string, feedback_text: string, session_id?: string }`. Server sets `project_id = "brain-training"` automatically. Response: `{ id: string, created_at: datetime }` | Y |
 | GET | /api/feedback | Export all feedback entries grouped by `page_context`. Query params: `from_date` (ISO date, optional), `to_date` (ISO date, optional). Response: `{ total: int, groups: [{ page_context, entries: [{ id, user_id, feedback_text, session_id, created_at }] }] }`. **Admin only** — the authenticated user's email must be present in the server-side `ADMIN_EMAILS` setting (comma-separated list). Returns HTTP 403 if the user is not an admin, or if `ADMIN_EMAILS` is not configured. | Y (admin) |
 
 ### Static / Content
@@ -340,97 +348,28 @@ brain-training/
 │   │   ├── domain_progress.py
 │   │   ├── lifestyle_log.py
 │   │   ├── streak.py
-│   │   └── feedback_entry.py              # FeedbackEntry model
+│   │   └── feedback_entry.py          # FeedbackEntry model (includes project_id)
 │   ├── routers/
 │   │   ├── __init__.py
 │   │   ├── auth.py
 │   │   ├── baseline.py
-│   │   ├── sessions.py
-│   │   ├── progress.py
+│   │   ├── sessions.py                # Returns adjusted_difficulty on attempt response
+│   │   ├── progress.py                # Includes /streak/history and /game-history endpoints
 │   │   ├── lifestyle.py
 │   │   ├── account.py
-│   │   └── feedback.py                    # POST /api/feedback, GET /api/feedback (admin)
+│   │   └── feedback.py                # POST /api/feedback, GET /api/feedback (admin)
 │   ├── services/
 │   │   ├── __init__.py
-│   │   ├── adaptive_difficulty.py     # Per-domain difficulty adjustment logic
+│   │   ├── adaptive_difficulty.py     # Per-domain difficulty adjustment + adjust_difficulty_in_session()
 │   │   ├── brain_health_score.py      # Brain Health Score calculation
 │   │   ├── exercise_generator.py      # Exercise/stimulus generation per type
-│   │   ├── session_planner.py         # Domain selection + session sequencing
+│   │   ├── session_planner.py         # Domain selection + session sequencing; mindfulness always included; NO_SCORING_EXERCISES set
 │   │   └── streak_manager.py          # Streak calculation and update (timezone-aware)
 │   ├── schemas/
 │   │   ├── __init__.py
-│   │   ├── auth.py                    # UserRegister enforces password ≥ 8 chars
+│   │   ├── auth.py                    # UserResponse includes has_completed_baseline; UserRegister enforces password ≥ 8 chars
 │   │   ├── session.py
 │   │   ├── progress.py
 │   │   ├── lifestyle.py
-│   │   └── feedback.py                    # FeedbackInput, FeedbackResponse schemas
+│   │   └── feedback.py                # FeedbackInput, FeedbackResponse schemas
 │   └── tests/
-│       ├── test_auth.py
-│       ├── test_sessions.py
-│       ├── test_adaptive_difficulty.py
-│       ├── test_brain_health_score.py
-│       └── test_feedback.py               # Feedback submission and export regression tests
-└── frontend/
-    ├── index.html
-    ├── package.json
-    ├── vite.config.js
-    ├── .env.example
-    └── src/
-        ├── main.jsx
-        ├── App.jsx
-        ├── styles/
-        │   ├── design-system.css      # All CSS custom properties from Design System v1
-        │   ├── components.css         # Button, card, input, nav patterns
-        │   └── global.css             # Resets, base, focus, reduced-motion
-        ├── components/
-        │   ├── ui/                    # Reusable: Button, Card, Input, Badge, ProgressBar, FeedbackWidget, PostGameFeedback
-        │   ├── nav/                   # Sidebar, BottomNav, TopNav
-        │   ├── exercises/             # One component per exercise type; GoNoGoLegacy.jsx removed
-        │   └── charts/                # TrendChart, DomainScoreCard, BrainHealthGauge
-        ├── pages/
-        │   ├── Landing.jsx
-        │   ├── Register.jsx
-        │   ├── Login.jsx
-        │   ├── Onboarding.jsx         # Baseline assessment flow
-        │   ├── Dashboard.jsx
-        │   ├── Session.jsx            # Active training session
-        │   ├── SessionSummary.jsx
-        │   ├── Progress.jsx
-        │   ├── LifestyleLog.jsx
-        │   ├── AboutScience.jsx
-        │   └── Settings.jsx
-        ├── hooks/
-        │   ├── useAuth.jsx            # Single auth hook file (useAuth.js removed)
-        │   ├── useSession.js
-        │   └── useDashboard.js
-        ├── api/
-        │   └── client.js              # Axios instance + Bearer token interceptor + all API call functions
-        ├── utils/
-        │   ├── scoring.js             # Score display helpers
-        │   └── time.js                # Duration formatting helpers
-        └── test/
-            ├── Dashboard.test.jsx
-            ├── Session.test.jsx
-            └── Stroop.test.jsx        # Unit tests for computeStroopResult pure function
-```
-
----
-
-### §9a. Feedback Feature Integration Points (added v0.5)
-
-| File | Change |
-|---|---|
-| `frontend/src/App.jsx` | Mount `<FeedbackWidget />` inside the authenticated route wrapper — renders on all logged-in pages |
-| `frontend/src/pages/SessionSummary.jsx` | Render `<PostGameFeedback sessionId={sessionId} />` below summary content; includes Skip button |
-| `frontend/src/api/client.js` | Add `submitFeedback(pageContext, feedbackText, sessionId = null)` function |
-| `backend/main.py` | Register `feedback` router with prefix `/api/feedback` |
-
-**FeedbackWidget behaviour:** Floating button fixed to bottom-right (above bottom nav on mobile). On click, opens an overlay modal with a textarea (placeholder: "Share your thoughts…"), a Submit button, and a close (×) button. On successful submit, replaces form with "Thank you for your feedback!" and closes after 2 seconds. Sends `page_context` derived from `window.location.pathname`.
-
-**PostGameFeedback behaviour:** Rendered as a card section at the bottom of the SessionSummary page with heading "How did that feel?" and a textarea. Has Submit and Skip buttons side by side. Skip closes/hides the component without submitting. On submit, shows inline confirmation "Thanks!" and hides the form. Always sends `session_id` of the completed session.
-
-**Feedback pipeline (v0.7 — autonomous):** Raw entries exported via `GET /api/feedback` are processed by the **Feedback Synthesis prompt** (`agent-prompts/feedback-synthesis.md`). The synthesis step groups feedback by theme, maps themes to spec sections, and produces a structured digest. An autonomous **feedback agent** (`feedback_agent/pipeline.py`) then:
-1. Fetches unprocessed feedback via `GET /api/feedback` (requires an admin-credentialled token — see §7 Feedback route)
-2. Passes entries to Claude Opus 4.6 (synthesizer) to produce a `feedback-digest.md`
-3. Passes `spec.md` + `feedback-digest.md` to Claude Opus 4.6 (implementer) to generate code changes
-4. Creates a git branch,

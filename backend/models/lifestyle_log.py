@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Float, Date, UniqueConstraint
 from sqlalchemy.orm import relationship
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from backend.database import Base
 
 class LifestyleLog(Base):
@@ -16,6 +16,6 @@ class LifestyleLog(Base):
     mood = Column(Integer, default=5)
     sleep_quality = Column(Integer, nullable=True)   # 1-5
     social_engagement = Column(Integer, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     user = relationship("User", back_populates="lifestyle_logs")
