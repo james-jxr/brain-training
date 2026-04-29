@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-
-const API_BASE = import.meta.env.VITE_API_URL || '';
+import { progressAPI } from '../api/client';
 
 export function useStreakData() {
   const [streakData, setStreakData] = useState(null);
@@ -13,27 +12,15 @@ export function useStreakData() {
     async function fetchStreak() {
       try {
         setLoading(true);
-        const token = localStorage.getItem('token');
-        const headers = {};
-        if (token) {
-          headers['Authorization'] = `Bearer ${token}`;
-        }
-
-        const response = await fetch(`${API_BASE}/api/progress/streak/history`, { headers });
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch streak data: ${response.status}`);
-        }
-
-        const data = await response.json();
+        const response = await progressAPI.getStreakHistory();
 
         if (!cancelled) {
-          setStreakData(data);
+          setStreakData(response.data);
           setError(null);
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err.message);
+          setError(err.response?.data?.detail || err.message || 'Failed to fetch streak data');
         }
       } finally {
         if (!cancelled) {
