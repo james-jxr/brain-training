@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, timedelta
 from backend.database import get_db
 from backend.models import User, LifestyleLog
 from backend.schemas import LifestyleLogCreate, LifestyleLogResponse

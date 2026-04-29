@@ -16,13 +16,14 @@ picks that file up on its next run and deletes it after processing.
 """
 
 import json
+import os
 import sys
 import urllib.request
 import urllib.error
 from pathlib import Path
 from datetime import datetime, timezone
 
-BACKEND_URL = "http://localhost:8000/api/feedback"
+BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8000/api/feedback")
 OUTPUT_FILE = Path(__file__).parent / "feedback-export.json"
 
 

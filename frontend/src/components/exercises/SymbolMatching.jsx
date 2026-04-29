@@ -3,6 +3,8 @@ import Button from '../ui/Button';
 import Card from '../ui/Card';
 import ProgressBar from '../ui/ProgressBar';
 
+const MAX_TRIALS = 8;
+
 const SymbolMatching = ({ difficulty, onComplete }) => {
   const [trials, setTrials] = useState(0);
   const [correct, setCorrect] = useState(0);
@@ -32,7 +34,7 @@ const SymbolMatching = ({ difficulty, onComplete }) => {
   };
 
   const startTrial = () => {
-    if (trials >= 8) {
+    if (trials >= MAX_TRIALS) {
       const avgResponseTime = responseTimes.length > 0
         ? responseTimes.reduce((a, b) => a + b) / responseTimes.length
         : 0;
@@ -91,7 +93,7 @@ const SymbolMatching = ({ difficulty, onComplete }) => {
     return <div>Loading...</div>;
   }
 
-  if (trials > 8) {
+  if (trials > MAX_TRIALS) {
     return (
       <Card>
         <h2>Exercise Complete</h2>
@@ -103,7 +105,7 @@ const SymbolMatching = ({ difficulty, onComplete }) => {
   return (
     <Card>
       <div style={{ marginBottom: 'var(--space-4)' }}>
-        <ProgressBar value={trials - 1} max={8} />
+        <ProgressBar value={trials - 1} max={MAX_TRIALS} />
       </div>
 
       {currentTrial && (

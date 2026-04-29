@@ -4,6 +4,8 @@ import Card from '../ui/Card';
 import Input from '../ui/Input';
 import ProgressBar from '../ui/ProgressBar';
 
+const MAX_TRIALS = 8;
+
 const DigitSpan = ({ difficulty, onComplete }) => {
   const [trials, setTrials] = useState(0);
   const [correct, setCorrect] = useState(0);
@@ -25,7 +27,7 @@ const DigitSpan = ({ difficulty, onComplete }) => {
   };
 
   const startTrial = () => {
-    if (trials >= 8) {
+    if (trials >= MAX_TRIALS) {
       const avgResponseTime = responseTimes.length > 0
         ? responseTimes.reduce((a, b) => a + b) / responseTimes.length
         : 0;
@@ -105,7 +107,7 @@ const DigitSpan = ({ difficulty, onComplete }) => {
     return <div>Loading...</div>;
   }
 
-  if (trials > 8) {
+  if (trials > MAX_TRIALS) {
     return (
       <Card>
         <h2>Exercise Complete</h2>
@@ -118,7 +120,7 @@ const DigitSpan = ({ difficulty, onComplete }) => {
   return (
     <Card>
       <div style={{ marginBottom: 'var(--space-4)' }}>
-        <ProgressBar value={trials - 1} max={8} />
+        <ProgressBar value={trials - 1} max={MAX_TRIALS} />
       </div>
 
       {phase === 'showing' && (

@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, ForeignKey
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 from backend.database import Base
 
 class BaselineResult(Base):
@@ -12,6 +12,6 @@ class BaselineResult(Base):
     score = Column(Float)    # 0.0-100.0
     baseline_number = Column(Integer)  # 1=original, 2=first re-baseline, etc.
     is_original = Column(Boolean, default=False)
-    completed_at = Column(DateTime, default=datetime.utcnow)
+    completed_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     user = relationship("User", back_populates="baseline_results")
