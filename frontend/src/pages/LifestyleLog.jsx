@@ -48,7 +48,12 @@ const LifestyleLog = () => {
       setMessage('Lifestyle data saved successfully!');
       setTimeout(() => setMessage(''), 3000);
     } catch (err) {
-      setError('Failed to save lifestyle data');
+      const detail = err.response?.data?.detail;
+      const errorMessage =
+        (detail && detail.message) ||
+        (typeof detail === 'string' ? detail : null) ||
+        'Failed to save lifestyle data';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
