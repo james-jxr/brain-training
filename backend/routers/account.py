@@ -49,7 +49,7 @@ def get_onboarding_status(
         "onboarding_completed": current_user.onboarding_completed
     }
 
-@router.patch("/account")
+@router.patch("")
 def update_account(
     update_data: AccountUpdate,
     current_user: User = Depends(get_current_user),
@@ -72,7 +72,7 @@ def update_account(
 
     return UserResponse.model_validate(current_user)
 
-@router.delete("/account")
+@router.delete("")
 def delete_account(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -81,7 +81,6 @@ def delete_account(
     db.delete(current_user)
     db.commit()
 
-    if response:
-        response.delete_cookie("access_token")
+    response.delete_cookie("access_token")
 
     return {"message": "Account deleted successfully"}
