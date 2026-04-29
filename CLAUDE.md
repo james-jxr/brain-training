@@ -52,9 +52,12 @@ DATABASE_URL="sqlite:////tmp/brain_training_test.db" python -m pytest backend/te
 # Run a single test file
 DATABASE_URL="sqlite:////tmp/brain_training_test.db" python -m pytest backend/tests/test_auth.py -v
 
-# Frontend
+# Frontend (test files live in frontend/src/test/)
 cd frontend && npm run test          # single run
 cd frontend && npm run test:watch    # watch mode
+
+# Integration smoke test (root level, requires backend running)
+python smoke_test.py
 ```
 
 ## Architecture
@@ -88,6 +91,7 @@ JWT tokens are stored in both **httpOnly cookies** (browser security) and return
 | `backend/services/brain_health_score.py` | Composite score: 60% cognitive average + 40% lifestyle |
 | `backend/services/streak_manager.py` | 36-hour streak window, UTC datetimes |
 | `backend/services/exercise_generator.py` | Generates per-difficulty exercise payloads (symbol matching, visual categorisation) |
+| `backend/schemas/` | Pydantic request/response schemas — one file per router, imported by routers and used as FastAPI body/response types |
 
 There are 8 routers: `auth`, `baseline`, `adaptive_baseline`, `sessions`, `progress`, `lifestyle`, `account`, `feedback`.
 
@@ -154,4 +158,6 @@ pip install -r feedback_agent/requirements.txt
 DRY_RUN=1 python -m feedback_agent.implementation_pipeline
 ```
 
-`agent-config.json` at the repo root defines which Claude agents are active and maps to design docs under `docs/` (`product-brief.md`, `functional-spec.md`, `design-guide.md`, `technical-architecture.md`).
+`agent-config.json` at the repo root defines which Claude agents are active and maps to design docs under `docs/` (`product-brief.md`, `functional-spec.md`, `design-guide.md`, `technical-architecture.md`). `spec.md` at the repo root is the authoritative 30 KB project specification that the pipeline keeps up to date.
+
+The pipeline is also triggered automatically via GitHub Actions: `.github/workflows/nightly-review.yml` runs `review_pipeline.py` and `.github/workflows/nightly-implementation.yml` runs `implementation_pipeline.py` on a schedule.
