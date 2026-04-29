@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from backend.database import get_db
 from backend.models import User, LifestyleLog
 from backend.schemas import LifestyleLogCreate, LifestyleLogResponse
@@ -75,12 +75,12 @@ def get_lifestyle_history(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+    thirty_days_ago = date.today() - timedelta(days=30)
 
     logs = db.query(LifestyleLog).filter(
         and_(
             LifestyleLog.user_id == current_user.id,
-            LifestyleLog.created_at >= thirty_days_ago
+            LifestyleLog.logged_date >= thirty_days_ago
         )
     ).order_by(LifestyleLog.logged_date.desc()).all()
 

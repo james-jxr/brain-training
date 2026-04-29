@@ -3,6 +3,8 @@ import Button from '../ui/Button';
 import Card from '../ui/Card';
 import ProgressBar from '../ui/ProgressBar';
 
+const MAX_TRIALS = 8;
+
 /**
  * Pure function: compute the final result from a completed Stroop session.
  * Exported for unit testing.
@@ -66,7 +68,7 @@ const Stroop = ({ difficulty, onComplete }) => {
   };
 
   const startTrial = useCallback(() => {
-    if (trialsRef.current >= 8) {
+    if (trialsRef.current >= MAX_TRIALS) {
       onComplete(computeStroopResult({
         trialsPresented: trialsRef.current,
         trialsCorrect: correctRef.current,
@@ -124,7 +126,7 @@ const Stroop = ({ difficulty, onComplete }) => {
     return <div>Loading...</div>;
   }
 
-  if (trials > 8) {
+  if (trials > MAX_TRIALS) {
     return (
       <Card>
         <h2>Exercise Complete</h2>
@@ -136,7 +138,7 @@ const Stroop = ({ difficulty, onComplete }) => {
   return (
     <Card>
       <div style={{ marginBottom: 'var(--space-4)' }}>
-        <ProgressBar value={trials - 1} max={8} />
+        <ProgressBar value={trials - 1} max={MAX_TRIALS} />
       </div>
 
       {currentTrial && (

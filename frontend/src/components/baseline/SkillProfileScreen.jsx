@@ -2,7 +2,6 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
-import Badge from '../ui/Badge';
 
 const LEVEL_LABELS = { 1: 'Easy', 2: 'Medium', 3: 'Hard' };
 const LEVEL_COLORS = {
