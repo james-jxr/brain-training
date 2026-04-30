@@ -77,7 +77,7 @@ def synthesise_feedback(
         ]
         resolved_text = "\n".join(lines)
 
-    # ── Step 1: Synthesis ──────────────────────────────────────────────────────
+    # ── Step 1: Synthesis ──────────────────────────────────────────────
     synthesis_user_message = (
         f"## Functional Spec\n\n{spec_content}\n\n"
         f"## File Tree\n\n```\n{file_tree}\n```\n\n"
@@ -98,13 +98,13 @@ def synthesise_feedback(
         "output_tokens": synth_msg.usage.output_tokens,
     }
 
-    raw = synth_msg.content[0].text.strip()
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
-    raw = raw.strip()
-    items = json.loads(raw)
+    raw_response = synth_msg.content[0].text.strip()
+    if raw_response.startswith("```"):
+        raw_response = raw_response.split("```")[1]
+        if raw_response.startswith("json"):
+            raw_response = raw_response[4:]
+    raw_response = raw_response.strip()
+    items = json.loads(raw_response)
     for item in items:
         item.setdefault("source", "feedback")
 
@@ -114,7 +114,7 @@ def synthesise_feedback(
     if not items:
         return [], synth_usage
 
-    # ── Step 2: Routing ────────────────────────────────────────────────────────
+    # ── Step 2: Routing ──────────────────────────────────────────────
     routing_user_message = (
         f"## Project spec\n\n{spec_content[:4000]}\n\n"
         f"## File tree\n\n```\n{file_tree[:2000]}\n```\n\n"
@@ -132,15 +132,15 @@ def synthesise_feedback(
         "output_tokens": route_msg.usage.output_tokens,
     }
 
-    raw = route_msg.content[0].text.strip()
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
-    raw = raw.strip()
+    raw_response = route_msg.content[0].text.strip()
+    if raw_response.startswith("```"):
+        raw_response = raw_response.split("```")[1]
+        if raw_response.startswith("json"):
+            raw_response = raw_response[4:]
+    raw_response = raw_response.strip()
 
     try:
-        routing_result = json.loads(raw)
+        routing_result = json.loads(raw_response)
         routed_items = routing_result.get("items", [])
         # Merge routing decisions back into synthesised items by id
         routing_map = {i["id"]: i for i in routed_items}

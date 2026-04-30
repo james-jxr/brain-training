@@ -726,3 +726,40 @@ Each entry is appended by the daily feedback pipeline task.
 **Test result:** PASSED (iteration 1):     at [90mfile:///home/runner/work/brain-training/brain-training/frontend/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2955:64
 **PR:** (none)
 **Errors:** (none)
+
+## Run — 2026-04-30 (automated) [pipeline v3 — implementation]
+**Status:** completed
+**Issues implemented:**
+  - #190: Rename `raw` variable to `raw_response` across feedback agent files
+  - #174: Replace hardcoded hex colors in CardMemoryGame.jsx with CSS custom properties
+  - #171: Replace hardcoded hex colors in BrainHealthGauge.jsx, DomainScoreCard.jsx, and GoNoGo.jsx with CSS custom properties
+  - #138: Surface session-start errors in FreePlay.jsx instead of silently swallowing them
+  - #142: Fix hardcoded baseline_number=1 in sessions.py with auto-increment logic
+**Issues failed:**
+  (none)
+**Issues deferred:**
+  - #184: Requires a human decision about whether the frontend scoring function is dead code (delete it) or live code (keep it in sync with backend). Cannot be implemented autonomously without that determination. Medium complexity touching two files across frontend and backend.
+  - #173: Consolidated into selected issue #171 — the GoNoGo.jsx color token changes are covered there alongside BrainHealthGauge.jsx and DomainScoreCard.jsx.
+  - #172: Consolidated into selected issue #171 — DomainScoreCard.jsx color token changes are covered there.
+  - #166: High complexity refactor of review_pipeline.py (400+ lines, multiple extraction points). Deferred to avoid compounding risk alongside the other medium-complexity items selected this run.
+  - #165: High complexity refactor of implementation_pipeline.py (500+ lines). Deferred — touches core pipeline orchestration and compounds risk significantly. Should be a dedicated run.
+  - #164: Medium complexity refactor of NBack.jsx — deferred to keep this run focused. Run is already at capacity with two medium items.
+  - #163: Medium complexity refactor of VisualCategorisation.jsx — deferred to keep this run focused and avoid compounding risk with other component refactors.
+  - #162: Medium complexity refactor of GoNoGo.jsx component structure — deferred. The design token fix for GoNoGo (selected in #171) is a prerequisite lower-risk change that should land first.
+  - #146: Pipeline version upgrade is an administrative/infrastructure operation requiring an Agent Central orchestrator command, not a code change. Not actionable by the build agent.
+  - #145: Medium complexity refactor of CardMemoryGame.jsx — deferred to avoid having two simultaneous changes to the same file (#174 already touches CardMemoryGame.jsx this run). Should be scheduled in the next run after the design token fix lands.
+  - #143: Medium complexity refactor of sessions.py log_exercise_result handler — deferred to avoid conflicting with selected issue #142 which already modifies sessions.py. Should run in the next cycle after #142 is merged.
+  - #98: Design agent review returned an unparseable/truncated response. The token names are not definitively confirmed. Consolidated coverage via selected issue #171 which addresses the same files with confirmed token names.
+  - #97: Design agent review returned an unparseable/truncated response. Covered by selected issue #171 which addresses BrainHealthGauge.jsx color tokens directly.
+  - #75: Multiple prior implementation failures. The most recent failure was an empty build agent response after infrastructure fixes were applied. Medium complexity with mobile layout concerns. Deferred to allow a clean run without compounding other CardMemoryGame.jsx changes (#174, #145).
+  - #69: Multiple prior implementation failures. Dashboard domain sessions count bug requires inspecting backend progress API field names and frontend mapping — medium complexity spanning frontend and backend. Deferred until a run with capacity to investigate the field-mapping root cause carefully.
+  - #67: Multiple prior implementation failures (empty responses, CI infrastructure issues). CardMemoryGame.jsx already has two other issues touching it this run (#174, deferred #145, deferred #75). Defer to a dedicated CardMemoryGame run.
+  - #66: Multiple prior implementation failures. DigitSpan staircase mechanic change touches both frontend component and potentially backend adaptive difficulty service. Medium-to-high complexity with prior test failures due to `adjust_difficulty_in_session()` signature changes. Deferred until backend adaptive difficulty is stabilised.
+  - #53: Medium complexity feature — guided breathing dashboard quick-launch. Product owner decisions are on record but previous implementation attempt wrote no files. Deferred to allow a focused run with adequate capacity for the multi-file change (Dashboard.jsx, lifestyle logging, session tracking).
+  - #49: Medium-to-high complexity. Level Up/Down message requires changes to adaptive_difficulty.py, sessions.py, and SessionSummary.jsx. Previous attempts failed due to backend test breakage (adjust_difficulty_in_session signature). Deferred until sessions.py is stabilised by #142 landing first.
+  - #48: CardMemoryGame image content change (letters/numbers deck). Product owner decisions are on record but previous attempt wrote no files. Multiple simultaneous CardMemoryGame changes this run would compound risk. Deferred to a dedicated CardMemoryGame run.
+  - #47: High complexity — Visual Categorisation three-round restructure requires changes to VisualCategorisation.jsx (already noted as 300+ lines in #163) and possibly exercise_generator.py. Product owner decisions are on record but the component refactor (#163) should precede this mechanic change. Previous attempt wrote no files.
+**Spec version:** v1.4
+**Test result:** PASSED (iteration 1):     at [90mfile:///home/runner/work/brain-training/brain-training/frontend/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2955:64
+**PR:** (none)
+**Errors:** (none)

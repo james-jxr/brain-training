@@ -1,6 +1,6 @@
 # App Specification: Brain Training App
 
-**Spec Version:** v1.3
+**Spec Version:** v1.4
 **Date:** 2026-04-30
 **Status:** Approved
 **Brief Reference:** Functional Requirements v1.0 (March 2026) + Design System v1 + Feedback Brief feedback-v1.0
@@ -26,6 +26,7 @@
 | v1.1 | 2026-04-29 | Mindfulness exercise added (guided breathing, 2-minute session, no scoring, 10 breath cycles). Session planner now always includes mindfulness as a third domain in every planned session. Within-session adaptive difficulty staircase rule added (`adjust_difficulty_in_session`): difficulty increases by 1 above 80%, decreases by 1 below 50%, clamped to [1, 10]; `adjusted_difficulty` returned on exercise attempt response. `FeedbackEntry` gains `project_id` field (default "brain-training"). `UserResponse` schema gains `has_completed_baseline` field. New `GET /api/progress/streak/history` endpoint returns 14-day session completion history. New `GET /api/progress/game-history` endpoint returns per-game score history (last 20 attempts per exercise type). `TrendChart` component upgraded to bar chart visualisation with external data support and `GAME_TYPE_LABELS` map. `useGameHistory` and `useStreakData` hooks added. `StreakTracker` component added. Auth token storage confirmed as `sessionStorage` throughout axios client. Baseline tests added (`test_baseline.py`) covering `has_completed_baseline` flag. Mindfulness unit tests added (`Mindfulness.test.jsx`). |
 | v1.2 | 2026-04-29 | Baseline router expanded: `POST /api/baseline/start` added (creates session, enforces eligibility via `next_baseline_eligible_date`, returns `baseline_number`); `POST /api/baseline/submit` extended (sets `onboarding_completed`, `has_completed_baseline`, `next_baseline_eligible_date = today + 180 days`, increments `baseline_number`, validates domain names, seeds/updates `DomainProgress`); `GET /api/baseline/next-eligible-date` added (returns `is_eligible` and `next_eligible_date`). Eligibility rule: request is blocked with HTTP 400 if `next_baseline_eligible_date` is strictly in the future; allowed when null or ≤ today. `BaselineResult.completed_at` migrated to timezone-aware `datetime.now(timezone.utc)`. Lifestyle history query corrected to filter on `logged_date` (date field) instead of `created_at` (datetime field), using `date.today() - timedelta(days=30)`. `BrainHealthScoreService.calculate_lifestyle_score` corrected to filter on `logged_date >= date.today() - timedelta(days=7)` instead of `created_at`. Streak manager constants extracted (`SECONDS_PER_HOUR = 3600`, `STREAK_EXPIRY_HOURS = 36`). Test suites substantially expanded: `test_baseline.py` now covers start/submit/next-eligible-date flows in full; `test_brain_health_score.py` rewritten with isolated test DB and full coverage of domain average, lifestyle score, and composite score; `test_lifestyle.py` added covering log creation/update, today endpoint, and 30-day history; `test_streak_manager.py` added. |
 | v1.3 | 2026-04-30 | `useGameHistory` and `useStreakData` hooks refactored to use `progressAPI` from the centralised axios client instead of raw `fetch` calls. `progressAPI` gains two new methods: `getGameHistory()` (calls `GET /api/progress/game-history`) and `getStreakHistory()` (calls `GET /api/progress/streak/history`). `useStreakData` error handling improved: errors now prefer `err.response?.data?.detail`, fall back to `err.message`, then fall back to the static string `'Failed to fetch streak data'`. axios 401 interceptor public-page list reordered to `['/', '/login', '/register']` (no functional change). Test suites added: `client.test.js` covering all API client exports; `useGameHistory.test.js` and `useStreakData.test.js` covering loading state, success, error, and mount behaviour. |
+| v1.4 | 2026-04-30 | Within-session staircase rule upgraded from 1-up/1-down to **2-up/1-down**: difficulty now increases by 1 only after 2 consecutive exercises scored above 80% (not after a single exercise). The 1-down rule (score < 50% → decrease by 1) is unchanged. `adjust_difficulty_in_session` gains a required `consecutive_correct` parameter (integer); the caller reads this from the freshly-committed `DomainProgress` record returned by `AdaptiveDifficultyService.update_difficulty`. `SkillAssessment.assessed_at` column migrated to timezone-aware `DateTime(timezone=True)`. `AdaptiveDifficultyService.update_difficulty` now calls `db.flush()` instead of `db.commit()` + `db.refresh()` when creating a new progress record, ensuring the caller can commit the full transaction atomically. Session router updated to read `current_difficulty` and `consecutive_correct` from the return value of `update_difficulty` (persisted state) rather than from the request payload. `get_next_exercise` re-reads `current_difficulty` from the DB on each call rather than using a session-start cached value. `SessionPlannerService` re-reads `DomainProgress` from the DB for each domain on each call to pick up mid-session updates. `BottomNav` refactored: per-link inline style objects replaced with a shared `navLinkStyle(active)` helper function (no visual change). `useGameHistory` no longer reads `access_token` from `sessionStorage` directly — token handling is now fully delegated to the centralised axios client. Test suites overhauled: `test_adaptive_difficulty.py` rewritten as class-based unit tests covering the 2-up/1-down staircase (12 cases) and `calculate_score` (5 cases); `test_sessions.py` rewritten as class-based integration tests with per-test user registration, covering authentication, exercise result logging, session completion, retrieval, listing, and accuracy extraction edge cases. |
 
 ---
 
@@ -79,7 +80,7 @@ The Brain Training App is a science-grounded cognitive training web application 
 1. **User registration and login** — email + password authentication with explicit GDPR/CCPA consent at registration. Password reset via email. **Passwords must be at least 8 characters** — enforced at both registration and account password update; shorter passwords are rejected with a validation error.
 2. **Baseline assessment** — covers all five cognitive domains (Processing Speed, Working Memory, Attention & Inhibitory Control, Executive Function, Episodic Memory). Takes approximately 10 minutes. Results set adaptive difficulty starting points per domain. Completed once at onboarding, then repeatable every 6 months. Each re-baseline resets the current-period improvement reference and recalibrates difficulty; the original baseline is always retained for long-term comparison. The dashboard notifies users when they become eligible for re-baseline. Once a user submits baseline results, the `has_completed_baseline` flag on their user profile is set to `true`, `onboarding_completed` is set to `true`, and `next_baseline_eligible_date` is set to 180 days from today. A user may not start a new baseline if `next_baseline_eligible_date` is set and is strictly in the future — such attempts are rejected with HTTP 400 and a message of the form `"Next baseline eligible on <date>"`. Eligibility is allowed when the field is null (new users) or when `next_baseline_eligible_date` is today or in the past.
 3. **Daily training session** — a guided 15–20 minute session covering exercises from 2–3 domains per session. Sessions are interleaved (not blocked on a single domain). Each session contains a minimum of 2 task variants per domain visited. Every planned session includes a mindfulness (guided breathing) exercise in addition to the two cognitive domains selected by the session planner. On completion, the user sees a session summary screen.
-4. **Adaptive difficulty per domain** — each domain tracks a rolling performance score (accuracy + speed) and adjusts task difficulty up or down to maintain a 70–80% success rate target. Difficulty cannot plateau — the system must continue to increase challenge for consistently high-performing users. **Within-session staircase rule:** after each exercise attempt the backend computes an `adjusted_difficulty` for the next exercise of the same type using a simple staircase: if the accuracy score exceeds 80%, difficulty increases by 1; if below 50%, difficulty decreases by 1; otherwise it stays the same. The result is clamped to [1, 10] and returned in the exercise attempt response as `adjusted_difficulty`.
+4. **Adaptive difficulty per domain** — each domain tracks a rolling performance score (accuracy + speed) and adjusts task difficulty up or down to maintain a 70–80% success rate target. Difficulty cannot plateau — the system must continue to increase challenge for consistently high-performing users. **Within-session staircase rule (2-up/1-down):** after each exercise attempt the backend computes an `adjusted_difficulty` for the next exercise of the same type using the following rule: if the accuracy score is below 50%, difficulty decreases by 1 (1-down); if the accuracy score exceeds 80% **and** the user has now scored above 80% on 2 or more consecutive exercises (including the current one), difficulty increases by 1 (2-up); otherwise difficulty stays the same. The `consecutive_correct` count used by the staircase is read from the freshly-committed `DomainProgress` record returned by `AdaptiveDifficultyService.update_difficulty`, ensuring cross-session persistence. The result is clamped to [1, 10] and returned in the exercise attempt response as `adjusted_difficulty`.
 5. **Cognitive exercise library (v1 launch)** — two concrete task variants per domain across 3 domains at launch, plus a mindfulness exercise included in every session. Executive Function and Episodic Memory are deferred to v1.1. **Symbol matching is currently hidden** pending replacement with a new task variant (see §11 Q7). `GoNoGoLegacy.jsx` has been retired and removed; the current Go/No-Go implementation lives in `GoNoGo.jsx`:
    - *Processing Speed:* ~~Symbol matching task~~ *(hidden, replacement pending)*; Card memory task
    - *Working Memory:* N-back sequence task; digit span task
@@ -181,8 +182,9 @@ The Brain Training App is a science-grounded cognitive training web application 
 | id | UUID | Primary key |
 | user_id | UUID | Foreign key → User, required |
 | domain | enum | One of: processing_speed, working_memory, attention |
-| current_difficulty | integer | 1–10, updated after each session |
+| current_difficulty | integer | 1–10, updated after each exercise attempt and committed before the next exercise is loaded to ensure cross-session persistence |
 | last_score | float | 0.0–100.0; used by BrainHealthScoreService for domain average calculation. If null, the domain average calculation returns 0.0. Updated to the latest submitted score on each baseline submission. |
+| consecutive_correct | integer | Count of consecutive exercises scored above 80% including the most recent; reset to 0 when a score falls below 80%. Read by the staircase rule to determine 2-up triggers. |
 | total_attempts | integer | Nullable in DB; treated as 0 when null — coerced before incrementing |
 | total_correct | integer | Nullable in DB; treated as 0 when null — coerced before incrementing |
 | updated_at | datetime | Required |
@@ -223,7 +225,7 @@ The Brain Training App is a science-grounded cognitive training web application 
 | user_id | integer | Foreign key → User, required |
 | game_key | string | One of: stroop, go_no_go, symbol_matching, nback, digit_span, card_memory, visual_categorisation |
 | assessed_level | integer | 1–3, the staircase-converged difficulty level |
-| assessed_at | datetime | Required, auto-set on creation, updated on re-baseline |
+| assessed_at | datetime (timezone-aware) | Required, auto-set on creation, updated on re-baseline. Stored as `DateTime(timezone=True)`. |
 | baseline_count | integer | Default 1, incremented on each re-baseline |
 
 ### Entity: Streak
@@ -258,35 +260,4 @@ The Brain Training App is a science-grounded cognitive training web application 
 | GET | /api/adaptive-baseline/status | Returns whether baseline is complete and per-game SkillAssessment profile | Y |
 | POST | /api/adaptive-baseline/complete | Submit adaptive baseline results (array of `{ game_key, assessed_level }`); seeds DomainProgress | Y |
 | POST | /api/baseline/start | Begin a new baseline session. Checks `next_baseline_eligible_date` — if set and strictly in the future, returns HTTP 400 with `{ "message": "Next baseline eligible on <ISO date>" }`. Otherwise creates a baseline session record and returns `{ baseline_number, is_baseline, domain_1, domain_2, ... }`. `baseline_number` reflects how many baselines the user has started (increments on each call). | Y |
-| POST | /api/baseline/submit | Submit domain baseline scores (array of `{ domain, score }`). Validates each domain name — unknown domains return HTTP 400 with `"Invalid domain"` in the error message. On success: stores `BaselineResult` rows (with `baseline_number` auto-incremented, `is_original = true` only for the first submission), updates or creates `DomainProgress` rows (setting `last_score`), sets `user.has_completed_baseline = true`, `user.onboarding_completed = true`, and `user.next_baseline_eligible_date = date.today() + timedelta(days=180)`. Response: `{ message, baseline_number, is_original, results: [{ domain, score, baseline_number, is_original }] }`. | Y |
-| GET | /api/baseline/next-eligible-date | Returns `{ is_eligible: bool, next_eligible_date: ISO date string or null }`. `is_eligible` is true when `next_baseline_eligible_date` is null, today, or in the past. | Y |
-
-### Training Sessions
-
-| Method | Path | Description | Auth required? |
-|---|---|---|---|
-| POST | /api/sessions/start | Begin a new training session; returns first exercise | Y |
-| GET | /api/sessions/:id/next | Get next exercise in the session | Y |
-| POST | /api/sessions/:id/attempt | Submit result for one exercise attempt. Response includes `accuracy_score` (rounded to 2 dp) and `adjusted_difficulty` (integer 1–10, computed by within-session staircase rule) | Y |
-| POST | /api/sessions/:id/complete | Mark session complete; returns summary | Y |
-| GET | /api/sessions/history | List past sessions (paginated, 20 per page) | Y |
-
-### Free-Play
-
-Free-play uses the same session API as structured training. The frontend (`FreePlay.jsx`) handles the single-game flow: start session → log single attempt → complete session → navigate to summary. No separate backend routes required.
-
-### Dashboard & Progress
-
-| Method | Path | Description | Auth required? |
-|---|---|---|---|
-| GET | /api/dashboard | Returns streak, total time, Brain Health Score, domain scores, lifestyle summary | Y |
-| GET | /api/progress/:domain | 30-day trend data for one domain | Y |
-| GET | /api/progress/brain-health-score | Score breakdown (cognitive + lifestyle factors) | Y |
-| GET | /api/progress/streak/history | Returns `current_streak`, `longest_streak`, and a `days` array covering the last 14 calendar days. Each day entry: `{ date: ISO string, completed: boolean, is_today: boolean }`. Used by the `StreakTracker` component via the `useStreakData` hook (calls `progressAPI.getStreakHistory()`). | Y |
-| GET | /api/progress/game-history | Returns per-exercise-type score history. Response: `{ games: { [exercise_type]: [{ date, score, difficulty }] } }`. Last 20 attempts per exercise type, oldest-first. Score is computed from `trials_correct / trials_presented * 100` where available, else from `attempt.score`, else 0. Used by the `useGameHistory` hook (calls `progressAPI.getGameHistory()`). | Y |
-
-### Lifestyle Logging
-
-| Method | Path | Description | Auth required? |
-|---|---|---|---|
-| GET | /api/lifestyle/today | Get today's lifestyle
+| POST | /api/baseline/submit | Submit domain baseline scores (array of `{ domain, score }`). Validates each domain name — unknown domains return HTTP 400 with `"Invalid domain"` in the error message. On success: stores `BaselineResult` rows (with `baseline_number` auto-incremented, `is_original = true` only for the first submission), updates or creates `DomainProgress` rows (setting `last_score`), sets `user.has_completed_baseline = true`, `user.onboarding_completed = true`, and `user.next_baseline_eligible_date = date.today() + timedelta(days=180)`. Response: `{ message

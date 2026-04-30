@@ -78,17 +78,17 @@ def review_design_issue(
     )
     duration_ms = int((time.monotonic() - t0) * 1000)
 
-    raw = msg.content[0].text.strip()
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
-    raw = raw.strip()
+    raw_response = msg.content[0].text.strip()
+    if raw_response.startswith("```"):
+        raw_response = raw_response.split("```")[1]
+        if raw_response.startswith("json"):
+            raw_response = raw_response[4:]
+    raw_response = raw_response.strip()
 
     usage = {"input_tokens": msg.usage.input_tokens, "output_tokens": msg.usage.output_tokens}
 
     try:
-        result = json.loads(raw)
+        result = json.loads(raw_response)
         can_resolve = bool(result.get("can_resolve", False))
         print(f"  [design_reviewer] #{issue['issue_number']}: "
               f"{'resolved' if can_resolve else 'unresolved'} "
@@ -108,7 +108,7 @@ def review_design_issue(
             "issue_number": issue["issue_number"],
             "can_resolve": False,
             "decision": "",
-            "remaining_questions": f"Design agent returned unparseable response: {raw[:200]}",
+            "remaining_questions": f"Design agent returned unparseable response: {raw_response[:200]}",
             "usage": usage,
         }
 

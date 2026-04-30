@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import Card from '../components/ui/Card';
 import VisualCategorisation from '../components/exercises/VisualCategorisation';
 import NBack from '../components/exercises/NBack';
@@ -39,11 +39,12 @@ const FreePlay = () => {
   const [sessionId, setSessionId] = useState(null);
   const [difficulty, setDifficulty] = useState(1);
   const [ready, setReady] = useState(false);
+  const [error, setError] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const config = GAME_CONFIG[gameKey];
 
-  useEffect(() => {
+  const init = useCallback(async () => {
     if (!config) return;
 
     // Mindfulness doesn't need session/difficulty setup
@@ -52,37 +53,52 @@ const FreePlay = () => {
       return;
     }
 
-    const init = async () => {
+    setError(false);
+
+    let newSessionId;
+    try {
       // Start a session for this domain
       const { sessionAPI } = await import('../api/client');
       const res = await sessionAPI.startSession(config.domain, config.domain);
-      setSessionId(res.data.id);
+      newSessionId = res.data.id;
+      setSessionId(newSessionId);
+    } catch {
+      setError(true);
+      return;
+    }
 
-      // Resolve difficulty: baseline level first, then domain progress, then default 1
-      try {
-        const baselineRes = await adaptiveBaselineAPI.getStatus();
-        if (baselineRes.data.has_completed) {
-          const entry = baselineRes.data.profile.find(
-            (p) => p.game_key === GAME_KEY_MAP[gameKey]
-          );
-          if (entry) {
-            setDifficulty(BASELINE_LEVEL_TO_DIFFICULTY[entry.assessed_level] ?? 1);
-            setReady(true);
-            return;
-          }
+    // Resolve difficulty: baseline level first, then domain progress, then default 1
+    try {
+      const baselineRes = await adaptiveBaselineAPI.getStatus();
+      if (baselineRes.data.has_completed) {
+        const entry = baselineRes.data.profile.find(
+          (p) => p.game_key === GAME_KEY_MAP[gameKey]
+        );
+        if (entry) {
+          setDifficulty(BASELINE_LEVEL_TO_DIFFICULTY[entry.assessed_level] ?? 1);
+          setReady(true);
+          return;
         }
-      } catch { /* fall through */ }
+      }
+    } catch { /* fall through */ }
 
-      try {
-        const progressRes = await progressAPI.getDomainProgress(config.domain);
-        setDifficulty(progressRes.data.current_difficulty);
-      } catch { /* use default 1 */ }
+    try {
+      const progressRes = await progressAPI.getDomainProgress(config.domain);
+      setDifficulty(progressRes.data.current_difficulty);
+    } catch { /* use default 1 */ }
 
-      setReady(true);
-    };
-
-    init().catch(() => setReady(true));
+    setReady(true);
   }, [gameKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!config) return;
+    init();
+  }, [gameKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleRetry = () => {
+    setError(false);
+    init();
+  };
 
   const handleComplete = async (result) => {
     // Mindfulness: no scoring needed, just navigate back
@@ -126,6 +142,48 @@ const FreePlay = () => {
 
   if (!config) {
     return <Card>Unknown game.</Card>;
+  }
+
+  if (error) {
+    return (
+      <div style={{ minHeight: '100vh', backgroundColor: 'var(--color-bg-base)', padding: 'var(--space-6)' }}>
+        <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+          <Card>
+            <div style={{ textAlign: 'center', padding: 'var(--space-6) 0' }}>
+              <p style={{ marginBottom: 'var(--space-4)', color: 'var(--color-text-primary)', fontSize: 'var(--text-body-md)' }}>
+                Something went wrong starting your session. Please try again.
+              </p>
+              <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap' }}>
+                <button
+                  onClick={handleRetry}
+                  style={{
+                    background: 'var(--color-primary)',
+                    border: 'none',
+                    borderRadius: 'var(--radius-md)',
+                    padding: 'var(--space-2) var(--space-4)',
+                    fontSize: 'var(--text-body-sm)',
+                    color: '#fff',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Retry
+                </button>
+                <Link
+                  to="/dashboard"
+                  style={{
+                    fontSize: 'var(--text-body-sm)',
+                    color: 'var(--color-text-secondary)',
+                    textDecoration: 'underline',
+                  }}
+                >
+                  Back to Dashboard
+                </Link>
+              </div>
+            </div>
+          </Card>
+        </div>
+      </div>
+    );
   }
 
   if (!ready) {
