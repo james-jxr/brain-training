@@ -97,22 +97,26 @@ def log_exercise_result(
         progress.total_correct = (progress.total_correct or 0) + trials_correct
         db.commit()
 
-    AdaptiveDifficultyService.update_difficulty(
+    # update_difficulty commits current_difficulty to the DB before the next
+    # exercise is loaded, ensuring cross-session persistence.
+    updated_progress = AdaptiveDifficultyService.update_difficulty(
         db,
         current_user.id,
         exercise_data.domain,
         accuracy_score
     )
 
-    # Compute in-session adjusted difficulty using the staircase rule.
-    # Use the difficulty that was sent with this exercise as the current level.
-    current_difficulty_int = 1
-    if exercise_data.difficulty is not None:
-        try:
-            current_difficulty_int = int(exercise_data.difficulty)
-        except (ValueError, TypeError):
-            current_difficulty_int = 1
-    adjusted_difficulty = adjust_difficulty_in_session(current_difficulty_int, accuracy_score)
+    # Compute in-session adjusted difficulty using the 2-up/1-down staircase rule.
+    # Read consecutive_correct from the freshly-committed progress record so that
+    # the staircase always operates on the current persisted state.
+    current_difficulty_int = updated_progress.current_difficulty if updated_progress else 1
+    consecutive_correct = updated_progress.consecutive_correct if updated_progress else 0
+
+    adjusted_difficulty = adjust_difficulty_in_session(
+        current_difficulty_int,
+        accuracy_score,
+        consecutive_correct
+    )
 
     response = ExerciseAttemptResponse.model_validate(attempt)
     return {
@@ -187,7 +191,8 @@ def get_next_exercise(
     exercise_type_index = attempt_index_in_domain // 2
     exercise_type = exercises[exercise_type_index] if exercise_type_index < len(exercises) else exercises[0]
 
-    # Get current difficulty for this domain
+    # Re-read current_difficulty from the DB to pick up any updates committed
+    # during this session rather than using a session-start cached value.
     progress = db.query(DomainProgress).filter(
         DomainProgress.user_id == current_user.id,
         DomainProgress.domain == domain

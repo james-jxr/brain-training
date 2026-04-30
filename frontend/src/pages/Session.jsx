@@ -10,7 +10,7 @@ import CardMemoryGame from '../components/exercises/CardMemoryGame';
 import Mindfulness from '../components/exercises/Mindfulness';
 import { useSession } from '../hooks/useSession';
 import { progressAPI, adaptiveBaselineAPI } from '../api/client';
-import { BASELINE_LEVEL_TO_DIFFICULTY } from '../constants/gameConstants';
+import { BASELINE_LEVEL_TO_DIFFICULTY } from '../utils/difficulty';
 
 // Exercise type → baseline game_key mapping
 // Used to look up the user's assessed starting difficulty.
