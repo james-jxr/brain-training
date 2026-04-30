@@ -94,31 +94,9 @@ RUN_LOG = str(Path(APP_ROOT) / "run-log.md")
 _FINDING_ID_RE = re.compile(r"Finding ID:\s*`([^`]+)`")
 
 # Patterns for extracting file paths from issue bodies / comments
-_FILE_BOLD_RE = re.compile(r'\*\*File:\*\*\s*`([^`]+)`')          # **File:** `path`
-_FILE_BACKTICK_RE = re.compile(r'`((?:frontend|backend|feedback_agent)/[^`\s]+\.[a-z]+)`')  # `frontend/...`
-_FILE_LIST_RE = re.compile(r'[-*]\s+`([^`]+\.[a-z]+)`')           # - `path.ext` list items
-
-
-def _extract_files_from_issue(issue_dict: dict) -> list[str]:
-    """
-    Fallback: extract likely file paths from an issue body and comments when
-    the prioritiser agent did not populate files_likely_affected.
-    Parses three formats:
-      - **File:** `path`  (audit finding issues)
-      - `frontend/...` or `backend/...`  (backtick-quoted paths in prose)
-      - - `path.ext`  (markdown list items)
-    Returns deduplicated list preserving order.
-    """
-    sources = [issue_dict.get("body", "")] + list(issue_dict.get("comments", []))
-    seen: dict[str, None] = {}
-    for text in sources:
-        for pattern in (_FILE_BOLD_RE, _FILE_BACKTICK_RE, _FILE_LIST_RE):
-            for m in pattern.finditer(text):
-                path = m.group(1).strip()
-                # Filter out obvious non-paths (e.g. single words, UUIDs)
-                if "/" in path or path.endswith((".py", ".js", ".jsx", ".ts", ".tsx", ".md", ".css")):
-                    seen[path] = None
-    return list(seen.keys())
+_FILE_BOLD_RE = re.compile(r'\*\*File:\*\*\s*`([^`]+)`')
+_FILE_BACKTICK_RE = re.compile(r'`((?:frontend|backend|feedback_agent)/[^`\s]+\.[a-z]+)`')
+_FILE_LIST_RE = re.compile(r'[-*]\s+`([^`]+\.[a-z]+)`')
 
 
 # ── Supabase helpers ─────────────────────────────────────────────────────────────
@@ -385,6 +363,29 @@ def _append_run_log(summary: dict):
         log_path.write_text(existing + entry)
     else:
         log_path.write_text(f"# Feedback Pipeline Run Log\n{entry}")
+
+
+# ── File path extraction (fallback when prioritiser omits files_likely_affected) ──
+
+def _extract_files_from_issue(issue_dict: dict) -> list[str]:
+    """
+    Fallback: extract likely file paths from an issue body and comments when
+    the prioritiser agent did not populate files_likely_affected.
+    Parses three formats:
+      - **File:** `path`  (audit finding issues)
+      - `frontend/...` or `backend/...`  (backtick-quoted paths in prose)
+      - - `path.ext`  (markdown list items)
+    Returns deduplicated list preserving order.
+    """
+    sources = [issue_dict.get("body", "")] + list(issue_dict.get("comments", []))
+    seen: dict[str, None] = {}
+    for text in sources:
+        for pattern in (_FILE_BOLD_RE, _FILE_BACKTICK_RE, _FILE_LIST_RE):
+            for m in pattern.finditer(text):
+                path = m.group(1).strip()
+                if "/" in path or path.endswith((".py", ".js", ".jsx", ".ts", ".tsx", ".md", ".css")):
+                    seen[path] = None
+    return list(seen.keys())
 
 
 # ── Finding ID extraction ─────────────────────────────────────────────────────────
