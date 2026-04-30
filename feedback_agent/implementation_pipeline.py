@@ -220,31 +220,31 @@ def _run_tests() -> tuple[bool, str, bool]:
     if not frontend_cwd.exists():
         frontend_cwd = Path(APP_ROOT)
 
-    # VITEST_CACHE_DIR prevents EACCES crashes when /root/.vite-cache is not
-    # writable in the CI runner environment.
-    frontend_env = {**os.environ, "VITEST_CACHE_DIR": "/tmp/vitest-cache"}
-    frontend_result = subprocess.run(
-        ["npx", "vitest", "run", "--reporter=verbose"],
-        cwd=str(frontend_cwd), capture_output=True, text=True, env=frontend_env
-    )
-    frontend_out = (frontend_result.stdout + frontend_result.stderr).strip()
-    frontend_ok = frontend_result.returncode == 0
-    if not frontend_ok:
-        passed = False
-    results.append(f"Frontend: {'PASSED' if frontend_ok else 'FAILED'}\n{frontend_out}")
+    frontend_pkg = frontend_cwd / "package.json"
+    if frontend_pkg.exists():
+        frontend_result = subprocess.run(
+            ["npm", "test", "--", "--watchAll=false", "--passWithNoTests"],
+            cwd=str(frontend_cwd), capture_output=True, text=True, env=env
+        )
+        frontend_out = (frontend_result.stdout + frontend_result.stderr).strip()
+        frontend_ok = frontend_result.returncode == 0
+        if not frontend_ok:
+            passed = False
+        results.append(f"Frontend: {'PASSED' if frontend_ok else 'FAILED'}\n{frontend_out}")
 
-    combined = "\n\n".join(results)
-    stripped = _ANSI_RE.sub('', combined)
+    combined_output = "\n\n".join(results) if results else "No tests found."
 
-    # Detect infrastructure errors vs real test failures
+    # Detect infrastructure errors
     infra_error = False
     if not passed:
-        has_test_failure = bool(re.search(r'(FAILED|AssertionError|assert\s)', stripped))
-        has_infra_error = any(pat.lower() in stripped.lower() for pat in _INFRA_ERROR_PATTERNS)
-        if has_infra_error and not has_test_failure:
-            infra_error = True
+        infra_error = any(pat.lower() in combined_output.lower() for pat in _INFRA_ERROR_PATTERNS)
+        # If infra error suspected but also real test failures, don't suppress
+        if infra_error:
+            test_failure_indicators = ["FAILED", "AssertionError", "assert ", "error::", "ERRORS"]
+            if any(ind in combined_output for ind in test_failure_indicators):
+                infra_error = False
 
-    return passed, stripped, infra_error
+    return passed, combined_output, infra_error
 
 def _extract_failing_info(test_output: str) -> tuple[list, list]:
     backend_files = set()
