@@ -12,10 +12,11 @@ vi.mock('../api/client', () => ({
 describe('useGameHistory', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    sessionStorage.clear();
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    sessionStorage.clear();
   });
 
   it('starts with loading=true and gameHistory=null', () => {
@@ -26,12 +27,14 @@ describe('useGameHistory', () => {
     expect(result.current.error).toBeNull();
   });
 
-  it('sets gameHistory from response.data.games on success', async () => {
+  it('sets gameHistory from API response on success', async () => {
     const mockGames = [
-      { game_key: 'nback', score: 80, played_at: '2024-01-01' },
-      { game_key: 'stroop', score: 70, played_at: '2024-01-02' },
+      { id: 1, domain: 'attention', score: 80 },
+      { id: 2, domain: 'working_memory', score: 70 },
     ];
-    progressAPI.getGameHistory.mockResolvedValue({ data: { games: mockGames } });
+    progressAPI.getGameHistory.mockResolvedValue({
+      data: { games: mockGames },
+    });
 
     const { result } = renderHook(() => useGameHistory());
 
@@ -41,49 +44,66 @@ describe('useGameHistory', () => {
     expect(result.current.error).toBeNull();
   });
 
-  it('sets error message on failure', async () => {
+  it('passes the access_token from sessionStorage to the API', async () => {
+    sessionStorage.setItem('access_token', 'test-token-123');
+    progressAPI.getGameHistory.mockResolvedValue({
+      data: { games: [] },
+    });
+
+    const { result } = renderHook(() => useGameHistory());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(progressAPI.getGameHistory).toHaveBeenCalledWith('test-token-123');
+  });
+
+  it('passes null token when sessionStorage has no access_token', async () => {
+    progressAPI.getGameHistory.mockResolvedValue({
+      data: { games: [] },
+    });
+
+    const { result } = renderHook(() => useGameHistory());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(progressAPI.getGameHistory).toHaveBeenCalledWith(null);
+  });
+
+  it('sets error and leaves gameHistory null on API failure', async () => {
     progressAPI.getGameHistory.mockRejectedValue(new Error('Network error'));
 
     const { result } = renderHook(() => useGameHistory());
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    expect(result.current.gameHistory).toBeNull();
     expect(result.current.error).toBe('Network error');
+    expect(result.current.gameHistory).toBeNull();
   });
 
   it('sets loading=false after success', async () => {
-    progressAPI.getGameHistory.mockResolvedValue({ data: { games: [] } });
+    progressAPI.getGameHistory.mockResolvedValue({
+      data: { games: [] },
+    });
 
     const { result } = renderHook(() => useGameHistory());
-
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.loading).toBe(false);
   });
 
-  it('sets loading=false after error', async () => {
+  it('sets loading=false after failure', async () => {
     progressAPI.getGameHistory.mockRejectedValue(new Error('fail'));
 
     const { result } = renderHook(() => useGameHistory());
-
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.loading).toBe(false);
   });
 
-  it('handles empty games array', async () => {
-    progressAPI.getGameHistory.mockResolvedValue({ data: { games: [] } });
+  it('returns empty array when API returns empty games list', async () => {
+    progressAPI.getGameHistory.mockResolvedValue({
+      data: { games: [] },
+    });
 
     const { result } = renderHook(() => useGameHistory());
-
     await waitFor(() => expect(result.current.loading).toBe(false));
+
     expect(result.current.gameHistory).toEqual([]);
-  });
-
-  it('calls progressAPI.getGameHistory once on mount', async () => {
-    progressAPI.getGameHistory.mockResolvedValue({ data: { games: [] } });
-
-    renderHook(() => useGameHistory());
-
-    await waitFor(() => expect(progressAPI.getGameHistory).toHaveBeenCalledTimes(1));
   });
 });

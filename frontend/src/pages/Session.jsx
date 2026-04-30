@@ -10,11 +10,7 @@ import CardMemoryGame from '../components/exercises/CardMemoryGame';
 import Mindfulness from '../components/exercises/Mindfulness';
 import { useSession } from '../hooks/useSession';
 import { progressAPI, adaptiveBaselineAPI } from '../api/client';
-
-// ─── Baseline level → difficulty (1-10) mapping ───────────────────────────
-// Mirrors the LEVEL_TO_DIFFICULTY constant in BaselineGameWrapper.
-// 1 = Easy → difficulty 2, 2 = Medium → 5, 3 = Hard → 8
-const BASELINE_LEVEL_TO_DIFFICULTY = { 1: 2, 2: 5, 3: 8 };
+import { BASELINE_LEVEL_TO_DIFFICULTY } from '../constants/gameConstants';
 
 // Exercise type → baseline game_key mapping
 // Used to look up the user's assessed starting difficulty.
