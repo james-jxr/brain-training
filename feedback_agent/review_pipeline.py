@@ -221,98 +221,91 @@ def run_review_pipeline():
         "design_escalated": 0,
     }
 
-    ensure_labels(GITHUB_TOKEN, GITHUB_REPOSITORY)
+    ensure_labels()
 
-    # ── Step 1-3: Audit findings ──────────────────────────────────────────────
-    print("[Step 1] Fetching code audit findings...")
+    # ── Step 1: Fetch unresolved findings from Supabase ──────────────────────
+    print("[Step 1] Fetching audit and coordination findings...")
     audit_findings = _fetch_findings("code_audit_findings")
-    print(f"[Step 2] Classifying {len(audit_findings)} audit finding(s)...")
+    coord_findings = _fetch_findings("coordination_findings")
+
+    # ── Step 2: Classify audit findings ─────────────────────────────────────
+    print("[Step 2] Classifying audit findings...")
     if audit_findings:
         classified_audit = classify_audit_findings(audit_findings)
         counts["audit_classified"] = len(classified_audit)
-        print(f"[Step 3] Creating GitHub issues for audit findings...")
-        for item in classified_audit:
-            issue_number = create_finding_issue(
-                GITHUB_TOKEN, GITHUB_REPOSITORY, item, source="code_audit"
-            )
-            if issue_number:
-                store_issue_number(
-                    SUPABASE_URL, SUPABASE_KEY,
-                    "code_audit_findings", item["id"], issue_number
-                )
-                counts["issues_created"] += 1
-        _log_performance("audit_findings_agent", "classify_and_create_issues",
-                         True, 0, 0)
+    else:
+        classified_audit = []
+        print("  No new audit findings to classify.")
 
-    # ── Steps 1-3 (coordination findings) ────────────────────────────────────
-    print("[Step 1b] Fetching coordination findings...")
-    coord_findings = _fetch_findings("coordination_findings")
-    print(f"[Step 2b] Classifying {len(coord_findings)} coordination finding(s)...")
+    # ── Step 3: Create/update GitHub issues for findings ────────────────────
+    print("[Step 3] Creating/updating GitHub issues for audit findings...")
+    for finding in classified_audit:
+        issue_num = create_finding_issue(finding, source="code_audit")
+        if issue_num:
+            store_issue_number("code_audit_findings", finding["id"], issue_num)
+            counts["issues_created"] += 1
+
     if coord_findings:
         classified_coord = classify_audit_findings(coord_findings)
         counts["coord_classified"] = len(classified_coord)
-        print(f"[Step 3b] Creating GitHub issues for coordination findings...")
-        for item in classified_coord:
-            issue_number = create_finding_issue(
-                GITHUB_TOKEN, GITHUB_REPOSITORY, item, source="coordination"
-            )
-            if issue_number:
-                store_issue_number(
-                    SUPABASE_URL, SUPABASE_KEY,
-                    "coordination_findings", item["id"], issue_number
-                )
-                counts["issues_created"] += 1
-        _log_performance("audit_findings_agent", "classify_coord_findings",
-                         True, 0, 0)
+    else:
+        classified_coord = []
+        print("  No new coordination findings to classify.")
 
-    # ── Step 4: Fetch user feedback ───────────────────────────────────────────
+    for finding in classified_coord:
+        issue_num = create_finding_issue(finding, source="coordination")
+        if issue_num:
+            store_issue_number("coordination_findings", finding["id"], issue_num)
+            counts["issues_created"] += 1
+
+    # ── Step 4: Fetch unprocessed user feedback ──────────────────────────────
     print("[Step 4] Fetching unprocessed user feedback...")
     conn = get_conn()
     feedback_rows = fetch_unprocessed_feedback(conn, PROJECT_ID)
-    print(f"  {len(feedback_rows)} unprocessed feedback item(s)")
     counts["feedback_items"] = len(feedback_rows)
+    print(f"  {len(feedback_rows)} unprocessed feedback item(s)")
 
-    # ── Step 5: Fetch spec and file tree ──────────────────────────────────────
+    # ── Step 5: Fetch project spec and file tree ─────────────────────────────
     print("[Step 5] Fetching project spec and file tree...")
     spec_text = _read_local(SPEC_CANDIDATES)
     design_text = _read_local(DESIGN_CANDIDATES)
     file_tree = build_file_tree(APP_ROOT)
+    system_prompt = get_system_prompt()
 
-    # ── Steps 6-7: Synthesise and route feedback ──────────────────────────────
+    # ── Step 6: Synthesise and route feedback ────────────────────────────────
+    print("[Step 6] Synthesising and routing feedback...")
+    processed_ids = []
     if feedback_rows:
-        print("[Step 6] Synthesising feedback...")
-        system_prompt = get_system_prompt("feedback_synthesis_agent")
         synthesis = synthesise_feedback(
             feedback_rows, spec_text, file_tree, system_prompt
         )
-        _log_performance("feedback_synthesis_agent", "synthesise", True, 0, 0)
-
-        print("[Step 7] Creating GitHub issues for feedback...")
+        # ── Step 7: Create/update GitHub issues for feedback ─────────────────
+        print("[Step 7] Creating/updating GitHub issues for feedback...")
         for item in synthesis:
-            issue_number = create_feedback_issue(
-                GITHUB_TOKEN, GITHUB_REPOSITORY, item
-            )
-            if issue_number:
+            issue_num = create_feedback_issue(item)
+            if issue_num:
                 counts["issues_created"] += 1
-        _log_performance("feedback_agent", "create_issues", True, 0, 0)
+            processed_ids.extend(item.get("feedback_ids", []))
+    else:
+        print("  No feedback to synthesise.")
 
-    # ── Step 8: Design reviews ────────────────────────────────────────────────
-    print("[Step 8] Fetching needs-design-review issues...")
+    # ── Step 8: Design review ────────────────────────────────────────────────
+    print("[Step 8] Running design reviews...")
     design_issues = _fetch_design_review_issues()
     if design_issues:
-        resolved, escalated = run_design_reviews(
-            design_issues, spec_text, design_text,
-            GITHUB_TOKEN, GITHUB_REPOSITORY
+        design_counts = run_design_reviews(
+            design_issues, spec_text, design_text, file_tree, system_prompt
         )
-        counts["design_resolved"] = resolved
-        counts["design_escalated"] = escalated
-        _log_performance("design_reviewer", "run_design_reviews", True, 0, 0)
+        counts["design_resolved"] = design_counts.get("resolved", 0)
+        counts["design_escalated"] = design_counts.get("escalated", 0)
+    else:
+        print("  No needs-design-review issues found.")
 
-    # ── Step 9: Mark feedback processed ──────────────────────────────────────
-    if feedback_rows:
-        print("[Step 9] Marking feedback as processed...")
-        ids = [r["id"] for r in feedback_rows]
-        mark_feedback_processed(conn, ids)
+    # ── Step 9: Mark feedback as processed ───────────────────────────────────
+    print("[Step 9] Marking feedback as processed...")
+    if processed_ids:
+        mark_feedback_processed(conn, processed_ids)
+        print(f"  Marked {len(processed_ids)} feedback item(s) as processed.")
     conn.close()
 
     # ── Step 10: Write run summary ────────────────────────────────────────────
@@ -324,7 +317,7 @@ def run_review_pipeline():
     print(f"  Audit findings classified : {counts['audit_classified']}")
     print(f"  Coord findings classified : {counts['coord_classified']}")
     print(f"  Feedback items processed  : {counts['feedback_items']}")
-    print(f"  Issues created/updated    : {counts['issues_created']}")
+    print(f"  GitHub issues created     : {counts['issues_created']}")
     print(f"  Design questions resolved : {counts['design_resolved']}")
     print(f"  Design questions escalated: {counts['design_escalated']}")
     print(f"{'='*60}\n")
