@@ -93,6 +93,33 @@ RUN_LOG = str(Path(APP_ROOT) / "run-log.md")
 # Finding ID pattern in issue body: Finding ID: `<uuid>`
 _FINDING_ID_RE = re.compile(r"Finding ID:\s*`([^`]+)`")
 
+# Patterns for extracting file paths from issue bodies / comments
+_FILE_BOLD_RE = re.compile(r'\*\*File:\*\*\s*`([^`]+)`')          # **File:** `path`
+_FILE_BACKTICK_RE = re.compile(r'`((?:frontend|backend|feedback_agent)/[^`\s]+\.[a-z]+)`')  # `frontend/...`
+_FILE_LIST_RE = re.compile(r'[-*]\s+`([^`]+\.[a-z]+)`')           # - `path.ext` list items
+
+
+def _extract_files_from_issue(issue_dict: dict) -> list[str]:
+    """
+    Fallback: extract likely file paths from an issue body and comments when
+    the prioritiser agent did not populate files_likely_affected.
+    Parses three formats:
+      - **File:** `path`  (audit finding issues)
+      - `frontend/...` or `backend/...`  (backtick-quoted paths in prose)
+      - - `path.ext`  (markdown list items)
+    Returns deduplicated list preserving order.
+    """
+    sources = [issue_dict.get("body", "")] + list(issue_dict.get("comments", []))
+    seen: dict[str, None] = {}
+    for text in sources:
+        for pattern in (_FILE_BOLD_RE, _FILE_BACKTICK_RE, _FILE_LIST_RE):
+            for m in pattern.finditer(text):
+                path = m.group(1).strip()
+                # Filter out obvious non-paths (e.g. single words, UUIDs)
+                if "/" in path or path.endswith((".py", ".js", ".jsx", ".ts", ".tsx", ".md", ".css")):
+                    seen[path] = None
+    return list(seen.keys())
+
 
 # ── Supabase helpers ─────────────────────────────────────────────────────────────
 
@@ -500,12 +527,29 @@ def run_implementation_pipeline():
         issue_number = item["issue_number"]
         print(f"\n  Implementing: #{issue_number} — {item['title'][:70]}")
 
-        # Build the change item in the format implement_change expects
+        # Build the change item in the format implement_change expects.
+        raw_issue = issue_map.get(issue_number, {})
+
+        # If the prioritiser did not populate files_likely_affected, fall back to
+        # extracting file paths from the issue body and comments.
+        files = item.get("files_likely_affected") or []
+        if not files:
+            files = _extract_files_from_issue(raw_issue)
+            if files:
+                print(f"  [fallback] extracted {len(files)} file(s) from issue body/comments: {files}")
+
+        # Build full description including all comments, which may contain design
+        # decisions and implementation guidance added after triage.
+        full_description = "\n\n---\n\n".join(filter(None, [
+            item.get("description") or raw_issue.get("body", ""),
+            *raw_issue.get("comments", []),
+        ]))
+
         change_item = {
             "id": item.get("id", f"issue-{issue_number}"),
             "title": item["title"],
-            "description": item.get("description", ""),
-            "files_likely_affected": item.get("files_likely_affected", []),
+            "description": full_description,
+            "files_likely_affected": files,
             "implementable": True,
             "type": item.get("type", "feature"),
             "priority": item.get("priority", "medium"),
