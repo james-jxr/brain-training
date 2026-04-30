@@ -66,14 +66,14 @@ def classify_audit_findings(
     )
     duration_ms = int((time.monotonic() - t0) * 1000)
 
-    raw = msg.content[0].text.strip()
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
-    raw = raw.strip()
+    raw_response = msg.content[0].text.strip()
+    if raw_response.startswith("```"):
+        raw_response = raw_response.split("```")[1]
+        if raw_response.startswith("json"):
+            raw_response = raw_response[4:]
+    raw_response = raw_response.strip()
 
-    result = json.loads(raw)
+    result = json.loads(raw_response)
     classifications = result.get("classifications", [])
     print(f"  [audit_classifier] classified {len(classifications)} finding(s) "
           f"in {duration_ms}ms (in={msg.usage.input_tokens} out={msg.usage.output_tokens})")

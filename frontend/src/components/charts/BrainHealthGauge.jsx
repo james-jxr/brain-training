@@ -1,11 +1,15 @@
 import React from 'react';
 import Card from '../ui/Card';
 
+function resolveCssVar(varName) {
+  return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+}
+
 const BrainHealthGauge = ({ score = 0, domainAverage = 0, lifestyleScore = 0 }) => {
   const getGaugeColor = (s) => {
-    if (s >= 80) return '#3D9E72';
-    if (s >= 60) return '#C9973A';
-    return '#D95F5F';
+    if (s >= 80) return resolveCssVar('--color-success');
+    if (s >= 60) return resolveCssVar('--color-warning');
+    return resolveCssVar('--color-error');
   };
 
   const getGaugeLabel = (s) => {

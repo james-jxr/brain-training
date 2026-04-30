@@ -3,11 +3,15 @@ import Card from '../ui/Card';
 import Badge from '../ui/Badge';
 import ProgressBar from '../ui/ProgressBar';
 
+function resolveCssVar(varName) {
+  return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+}
+
 const DomainScoreCard = ({ domain, difficulty, lastScore, totalSessions, averageScore }) => {
   const getDifficultyColor = () => {
-    if (difficulty <= 3) return '#3D9E72';
-    if (difficulty <= 6) return '#C9973A';
-    return '#D95F5F';
+    if (difficulty <= 3) return resolveCssVar('--color-success');
+    if (difficulty <= 6) return resolveCssVar('--color-warning');
+    return resolveCssVar('--color-error');
   };
 
   const getDifficultyLabel = () => {

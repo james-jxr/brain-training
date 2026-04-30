@@ -9,11 +9,11 @@ const MIN_ROUNDS = 3;
 const CardMemoryGame = ({ difficulty, onComplete, totalRounds }) => {
   const shapes = ['◯', '△', '★', '□', '◇'];
   const colors = [
-    { hex: '#DC2626', name: 'Red' },
-    { hex: '#2563EB', name: 'Blue' },
-    { hex: '#16A34A', name: 'Green' },
-    { hex: '#7C3AED', name: 'Purple' },
-    { hex: '#EA580C', name: 'Orange' }
+    { hex: 'var(--color-error)', name: 'Red' },
+    { hex: 'var(--color-primary)', name: 'Blue' },
+    { hex: 'var(--color-success)', name: 'Green' },
+    { hex: 'var(--color-purple)', name: 'Purple' },
+    { hex: 'var(--color-warning)', name: 'Orange' }
   ];
 
   const numRounds = Math.max(MIN_ROUNDS, totalRounds || MIN_ROUNDS);

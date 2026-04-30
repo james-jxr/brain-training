@@ -7,6 +7,7 @@ from backend.schemas import SessionCreate, SessionResponse, ExerciseAttemptCreat
 from backend.security import get_current_user
 from backend.services import AdaptiveDifficultyService, StreakManagerService, SessionPlannerService
 from backend.services.adaptive_difficulty import adjust_difficulty_in_session
+from backend.services.session_helpers import get_next_baseline_number
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 
@@ -44,12 +45,17 @@ def start_session(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    if session_data.is_baseline:
+        baseline_number = get_next_baseline_number(current_user.id, db)
+    else:
+        baseline_number = None
+
     new_session = DBSession(
         user_id=current_user.id,
         domain_1=session_data.domain_1,
         domain_2=session_data.domain_2,
         is_baseline=session_data.is_baseline,
-        baseline_number=1 if session_data.is_baseline else None
+        baseline_number=baseline_number
     )
     db.add(new_session)
     db.commit()

@@ -6,6 +6,7 @@ from backend.database import get_db
 from backend.models import User, Session as DBSession, DomainProgress, BaselineResult
 from backend.schemas import SessionResponse, DomainScoreInput, BaselineResultResponse
 from backend.security import get_current_user
+from backend.services.session_helpers import get_next_baseline_number
 
 router = APIRouter(prefix="/api/baseline", tags=["baseline"])
 
@@ -23,12 +24,7 @@ def start_baseline(
                 detail={"message": f"Next baseline eligible on {current_user.next_baseline_eligible_date}"}
             )
 
-    # Auto-increment baseline_number per user
-    existing_count = db.query(DBSession).filter(
-        DBSession.user_id == current_user.id,
-        DBSession.is_baseline == 1
-    ).count()
-    baseline_number = existing_count + 1
+    baseline_number = get_next_baseline_number(current_user.id, db)
 
     baseline_session = DBSession(
         user_id=current_user.id,

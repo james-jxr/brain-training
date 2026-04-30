@@ -36,20 +36,26 @@ function getDifficultyConfig(difficulty) {
   return { label: 'Hard', displayMs: 450, noGoCount: 3, goRatio: 0.65 };
 }
 
+// ─── CSS variable resolver ────────────────────────────────────────────────────
+
+function resolveCssVar(varName) {
+  return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+}
+
 // ─── Stimulus definitions ──────────────────────────────────────────────────────
 
 const GO_STIMULUS = {
   shape: 'circle',
-  color: '#3D9E72',
+  colorVar: '--color-success',
   label: 'green circle',
   isGo: true,
 };
 
 // No-Go options in order — Easy uses [0], Medium [0,1], Hard [0,1,2]
 const NOGO_STIMULI = [
-  { shape: 'circle',   color: '#D95F5F', label: 'red circle',    isGo: false },
-  { shape: 'square',   color: '#4A90C4', label: 'blue square',   isGo: false },
-  { shape: 'triangle', color: '#C9973A', label: 'orange triangle', isGo: false },
+  { shape: 'circle',   colorVar: '--color-error',   label: 'red circle',      isGo: false },
+  { shape: 'square',   colorVar: '--color-primary',  label: 'blue square',     isGo: false },
+  { shape: 'triangle', colorVar: '--color-warning',  label: 'orange triangle', isGo: false },
 ];
 
 // ─── Stimulus generation ───────────────────────────────────────────────────────
@@ -59,7 +65,7 @@ const NOGO_STIMULI = [
  * Exported for unit-testing.
  *
  * @param {object} config  { noGoCount: number, goRatio: number }
- * @returns {Array<object>} stimulus objects with isGo, shape, color, label
+ * @returns {Array<object>} stimulus objects with isGo, shape, colorVar, label
  */
 export function generateStimuli(config) {
   const total = 20;
@@ -120,7 +126,8 @@ export function computeResult(stats) {
 
 // ─── Shape renderer ────────────────────────────────────────────────────────────
 
-function Shape({ shape, color, size = 140 }) {
+function Shape({ shape, colorVar, size = 140 }) {
+  const color = resolveCssVar(colorVar);
   const half = size / 2;
 
   if (shape === 'circle') {
@@ -322,7 +329,7 @@ const GoNoGo = ({ difficulty, onComplete }) => {
             padding: 'var(--space-4) var(--space-6)',
             marginBottom: 'var(--space-4)',
           }}>
-            <Shape shape="circle" color="#3D9E72" size={80} />
+            <Shape shape="circle" colorVar="--color-success" size={80} />
             <p style={{
               marginTop: 'var(--space-2)',
               fontWeight: 'var(--weight-bold)',
@@ -352,7 +359,7 @@ const GoNoGo = ({ difficulty, onComplete }) => {
             <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'center' }}>
               {noGoVariants.map((s) => (
                 <div key={s.label} style={{ opacity: 0.55 }}>
-                  <Shape shape={s.shape} color={s.color} size={52} />
+                  <Shape shape={s.shape} colorVar={s.colorVar} size={52} />
                 </div>
               ))}
             </div>
@@ -421,7 +428,7 @@ const GoNoGo = ({ difficulty, onComplete }) => {
               alignItems: 'center',
               animation: 'gng-appear 0.08s ease-out',
             }}>
-              <Shape shape={stim.shape} color={stim.color} size={140} />
+              <Shape shape={stim.shape} colorVar={stim.colorVar} size={140} />
               {showHint && (
                 <p style={{
                   marginTop: 'var(--space-3)',

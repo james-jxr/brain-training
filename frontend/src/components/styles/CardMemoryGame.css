@@ -1,3 +1,11 @@
+:root {
+  --color-error: #DC2626;
+  --color-primary: #2563EB;
+  --color-success: #16A34A;
+  --color-purple: #7C3AED;
+  --color-warning: #EA580C;
+}
+
 .card-memory-container {
   width: 100%;
   max-width: 560px;
