@@ -763,3 +763,30 @@ Each entry is appended by the daily feedback pipeline task.
 **Test result:** PASSED (iteration 1):     at [90mfile:///home/runner/work/brain-training/brain-training/frontend/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2955:64
 **PR:** (none)
 **Errors:** (none)
+
+## Run — 2026-04-30 (automated) [pipeline v3 — implementation]
+**Status:** completed
+**Issues implemented:**
+  - #173: Replace hardcoded hex colors in GoNoGo.jsx with CSS custom properties
+  - #67: CardMemory: briefly reveal correct card position on wrong guess
+  - #69: Dashboard: domain boxes show 0 sessions when score exists — fix field mapping
+  - #75: CardMemory grid overflows viewport on mobile — make layout responsive
+**Issues failed:**
+  (none)
+**Issues deferred:**
+  - #166: Medium complexity refactor of review_pipeline.py (400+ lines). Deferred to avoid stacking multiple pipeline-script refactors in one run alongside higher-priority user-facing fixes.
+  - #165: Medium complexity refactor of implementation_pipeline.py (500+ lines). Deferred — this is the script running the pipeline itself; refactoring it carries elevated risk and should be a dedicated run.
+  - #164: Medium complexity refactor of NBack.jsx. Deferred to keep this run focused on bug fixes and a coherent set of CardMemory changes.
+  - #163: Medium complexity refactor of VisualCategorisation.jsx. Deferred — issue #47 (mechanic change for this component) is also in the queue; the refactor should follow after the mechanic change stabilises.
+  - #162: Medium complexity refactor of GoNoGo.jsx component render. Deferred — issue #173 (color tokens for GoNoGo) is selected for this run; stacking a structural refactor of the same file compounds risk.
+  - #146: Pipeline version upgrade requiring an orchestrator command from Agent Central — not a code change. Cannot be implemented by the build agent autonomously.
+  - #145: Medium complexity refactor of CardMemoryGame.jsx. Deferred — two other CardMemory issues (#67, #75) are already selected for this run; stacking a structural refactor of the same file on top of two behaviour/layout changes is high risk.
+  - #66: High complexity mechanic change (DigitSpan staircase, touches frontend component and possibly backend adaptive difficulty service). Deferred to avoid compounding risk with the currently selected medium issues.
+  - #53: Medium complexity feature (guided breathing dashboard quick-launch) touching Dashboard, Mindfulness component, lifestyle logging. Deferred — scope is broad and previous attempt produced empty response; warrants a dedicated run.
+  - #49: Medium complexity feature (level-up/down message on session results) requiring changes to SessionSummary, adaptive_difficulty service, and sessions router. Deferred — touches core scoring and difficulty logic; too risky to combine with other medium changes.
+  - #48: Medium complexity design change (card imagery overhaul with new icon library). Deferred — issue #67 and #75 already touch CardMemoryGame.jsx in this run; adding a visual overhaul to the same file in the same run is too risky.
+  - #47: High complexity mechanic change (Visual Categorisation round structure, rule engine, scoring overhaul). Deferred — touches both frontend component and backend exercise generator; too risky to combine with selected issues.
+**Spec version:** v1.4
+**Test result:** PASSED (iteration 1):     at [90mfile:///home/runner/work/brain-training/brain-training/frontend/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2955:64
+**PR:** (none)
+**Errors:** (none)

@@ -10,7 +10,7 @@ import DomainScoreCard from '../components/charts/DomainScoreCard';
 import BaselinePrompt from '../components/baseline/BaselinePrompt';
 import { useDashboard } from '../hooks/useDashboard';
 import { useSession } from '../hooks/useSession';
-import { adaptiveBaselineAPI } from '../api/client';
+import { adaptiveBaselineAPI, progressAPI } from '../api/client';
 import { Flame } from 'lucide-react';
 
 const isTextInputFocused = () => {
@@ -82,6 +82,9 @@ const Dashboard = () => {
   const [baselinePromptDismissed, setBaselinePromptDismissed] = useState(false);
   const [baselineStatusLoaded, setBaselineStatusLoaded] = useState(false);
 
+  // Per-domain session counts fetched separately
+  const [domainSessionCounts, setDomainSessionCounts] = useState({});
+
   useEffect(() => {
     const checkBaseline = async () => {
       try {
@@ -95,6 +98,34 @@ const Dashboard = () => {
       }
     };
     checkBaseline();
+  }, []);
+
+  useEffect(() => {
+    const fetchDomainSessionCounts = async () => {
+      const domains = ['processing_speed', 'working_memory', 'attention'];
+      const counts = {};
+      await Promise.all(
+        domains.map(async (domain) => {
+          try {
+            const res = await progressAPI.getDomainProgress(domain);
+            const data = res.data;
+            // The backend DomainProgressResponse uses session_count
+            counts[domain] =
+              data.session_count !== undefined
+                ? data.session_count
+                : data.total_sessions !== undefined
+                ? data.total_sessions
+                : data.sessions !== undefined
+                ? data.sessions
+                : 0;
+          } catch (err) {
+            counts[domain] = 0;
+          }
+        })
+      );
+      setDomainSessionCounts(counts);
+    };
+    fetchDomainSessionCounts();
   }, []);
 
   // Global keydown guard: allow default behaviour when a text input is focused
@@ -222,7 +253,9 @@ const Dashboard = () => {
                   domain={domain.domain}
                   difficulty={domain.current_difficulty}
                   lastScore={domain.last_score}
-                  totalSessions={domain.total_sessions}
+                  totalSessions={domainSessionCounts[domain.domain] !== undefined
+                    ? domainSessionCounts[domain.domain]
+                    : domain.total_sessions}
                   averageScore={domain.average_score}
                 />
               ))}
