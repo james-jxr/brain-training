@@ -47,6 +47,7 @@ const CardMemoryGame = ({ difficulty, onComplete, totalRounds }) => {
   const [showResult, setShowResult] = useState(false);
   const [score, setScore] = useState(0);
   const [roundResults, setRoundResults] = useState([]);
+  const [revealedHint, setRevealedHint] = useState(null);
 
   const generateCards = useCallback(() => {
     const newCards = [];
@@ -93,6 +94,7 @@ const CardMemoryGame = ({ difficulty, onComplete, totalRounds }) => {
     setResponseStartTime(null);
     setResponseTime(null);
     setShowResult(false);
+    setRevealedHint(null);
   }, [generateCards, config.memorizationTime]);
 
   useEffect(() => {
@@ -130,7 +132,7 @@ const CardMemoryGame = ({ difficulty, onComplete, totalRounds }) => {
   };
 
   const handleCardClick = (cardId) => {
-    if (gameState !== 'guessing' || selectedCard !== null || showResult || !responseStartTime) {
+    if (gameState !== 'guessing' || selectedCard !== null || showResult || !responseStartTime || revealedHint !== null) {
       return;
     }
 
@@ -162,26 +164,42 @@ const CardMemoryGame = ({ difficulty, onComplete, totalRounds }) => {
     const updatedResults = [...roundResults, roundResult];
     setRoundResults(updatedResults);
 
-    setTimeout(() => {
-      if (currentRound < numRounds) {
-        setCurrentRound(currentRound + 1);
-      } else {
-        const totalSessionScore = updatedResults.reduce((sum, r) => sum + r.score, 0);
-        const totalCorrect = updatedResults.filter(r => r.correct).length;
-        const avgResponseTime = updatedResults.reduce((sum, r) => sum + r.response_time_ms, 0) / updatedResults.length;
-
-        onComplete({
-          difficulty: difficultyString,
-          card_count: config.cardCount,
-          correct: totalCorrect === numRounds,
-          response_time_ms: Math.round(avgResponseTime),
-          score: Math.round(totalSessionScore / numRounds),
-          rounds: updatedResults,
-          total_rounds: numRounds,
-          rounds_correct: totalCorrect
-        });
+    if (!correct) {
+      const matchingCard = cards.find(c => c.pair === target.pair && c.id !== cardId);
+      if (matchingCard) {
+        setRevealedHint(matchingCard.id);
+        setTimeout(() => {
+          setRevealedHint(null);
+          proceedAfterRound(currentRound, updatedResults, numRounds);
+        }, 1500);
+        return;
       }
+    }
+
+    setTimeout(() => {
+      proceedAfterRound(currentRound, updatedResults, numRounds);
     }, 2000);
+  };
+
+  const proceedAfterRound = (round, updatedResults, totalRounds) => {
+    if (round < totalRounds) {
+      setCurrentRound(round + 1);
+    } else {
+      const totalSessionScore = updatedResults.reduce((sum, r) => sum + r.score, 0);
+      const totalCorrect = updatedResults.filter(r => r.correct).length;
+      const avgResponseTime = updatedResults.reduce((sum, r) => sum + r.response_time_ms, 0) / updatedResults.length;
+
+      onComplete({
+        difficulty: difficultyString,
+        card_count: config.cardCount,
+        correct: totalCorrect === totalRounds,
+        response_time_ms: Math.round(avgResponseTime),
+        score: Math.round(totalSessionScore / totalRounds),
+        rounds: updatedResults,
+        total_rounds: totalRounds,
+        rounds_correct: totalCorrect
+      });
+    }
   };
 
   const calculateSpeedBonus = (responseTimeMs, memorizationTime) => {
@@ -195,6 +213,10 @@ const CardMemoryGame = ({ difficulty, onComplete, totalRounds }) => {
     if (config.cardCount === 4) return 2;
     if (config.cardCount === 8) return 4;
     return 4;
+  };
+
+  const isCardFaceUp = (card) => {
+    return selectedCard === card.id || revealedHint === card.id;
   };
 
   return (
@@ -242,16 +264,22 @@ const CardMemoryGame = ({ difficulty, onComplete, totalRounds }) => {
             {cards.map(card => (
               <div
                 key={card.id}
-                className={`card-wrapper ${selectedCard === card.id ? 'selected' : ''}`}
+                className={`card-wrapper ${
+                  selectedCard === card.id ? 'selected' : ''
+                } ${
+                  revealedHint === card.id ? 'hint-revealed' : ''
+                }`}
                 onClick={() => handleCardClick(card.id)}
               >
-                <div className={`card face-down ${selectedCard === card.id ? 'flipped' : ''}`}>
-                  {selectedCard === card.id && (
+                <div className={`card face-down ${
+                  isCardFaceUp(card) ? 'flipped' : ''
+                }`}>
+                  {isCardFaceUp(card) && (
                     <div className="card-content" style={{ color: card.color }}>
                       <div className="shape-display">{card.shape}</div>
                     </div>
                   )}
-                  {selectedCard !== card.id && <div className="card-back">?</div>}
+                  {!isCardFaceUp(card) && <div className="card-back">?</div>}
                 </div>
               </div>
             ))}

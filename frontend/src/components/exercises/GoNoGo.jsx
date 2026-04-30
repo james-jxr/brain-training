@@ -53,7 +53,7 @@ const GO_STIMULUS = {
 
 // No-Go options in order — Easy uses [0], Medium [0,1], Hard [0,1,2]
 const NOGO_STIMULI = [
-  { shape: 'circle',   colorVar: '--color-error',   label: 'red circle',      isGo: false },
+  { shape: 'circle',   colorVar: '--color-error',    label: 'red circle',      isGo: false },
   { shape: 'square',   colorVar: '--color-primary',  label: 'blue square',     isGo: false },
   { shape: 'triangle', colorVar: '--color-warning',  label: 'orange triangle', isGo: false },
 ];
