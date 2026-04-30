@@ -10,6 +10,7 @@ import CardMemoryGame from '../components/exercises/CardMemoryGame';
 import Mindfulness from '../components/exercises/Mindfulness';
 import { useSession } from '../hooks/useSession';
 import { progressAPI, adaptiveBaselineAPI } from '../api/client';
+import { BASELINE_LEVEL_TO_DIFFICULTY } from '../constants/gameConstants';
 
 const GAME_CONFIG = {
   visual_categorisation: { label: 'Visual Categorisation',  domain: 'processing_speed', component: VisualCategorisation },
@@ -29,8 +30,6 @@ const GAME_KEY_MAP = {
   stroop: 'stroop',
   card_memory: 'card_memory',
 };
-
-const BASELINE_LEVEL_TO_DIFFICULTY = { 1: 2, 2: 5, 3: 8 };
 
 const FreePlay = () => {
   const { gameKey } = useParams();

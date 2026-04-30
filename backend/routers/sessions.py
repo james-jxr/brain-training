@@ -10,6 +10,34 @@ from backend.services.adaptive_difficulty import adjust_difficulty_in_session
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 
+
+def extract_accuracy(attempt: ExerciseAttemptCreate) -> tuple[float, int, int]:
+    """Extract accuracy_score, trials_presented, and trials_correct from an exercise attempt.
+
+    For card_memory exercises, trials_presented defaults to 1 and trials_correct
+    defaults based on the correct flag. For all other exercise types, trials_presented
+    and trials_correct are taken directly from the payload (defaulting to 0).
+
+    Returns:
+        A tuple of (accuracy_score, trials_presented, trials_correct).
+    """
+    if attempt.exercise_type == "card_memory":
+        trials_presented = attempt.trials_presented or 1
+        trials_correct = attempt.trials_correct or (1 if attempt.correct else 0)
+        if trials_presented > 0:
+            accuracy_score = (trials_correct / trials_presented) * 100
+        else:
+            accuracy_score = 0.0
+    else:
+        trials_presented = attempt.trials_presented or 0
+        trials_correct = attempt.trials_correct or 0
+        if trials_presented > 0:
+            accuracy_score = (trials_correct / trials_presented) * 100
+        else:
+            accuracy_score = 0.0
+    return accuracy_score, trials_presented, trials_correct
+
+
 @router.post("/start", response_model=SessionResponse)
 def start_session(
     session_data: SessionCreate,
@@ -57,20 +85,7 @@ def log_exercise_result(
     db.commit()
     db.refresh(attempt)
 
-    if exercise_data.exercise_type == "card_memory":
-        trials_presented = exercise_data.trials_presented or 1
-        trials_correct = exercise_data.trials_correct or (1 if exercise_data.correct else 0)
-        if trials_presented > 0:
-            accuracy_score = (trials_correct / trials_presented) * 100
-        else:
-            accuracy_score = 0.0
-    else:
-        total_moves = exercise_data.trials_presented or 0
-        accurate_moves = exercise_data.trials_correct or 0
-        if total_moves > 0:
-            accuracy_score = (accurate_moves / total_moves) * 100
-        else:
-            accuracy_score = 0.0
+    accuracy_score, trials_presented, trials_correct = extract_accuracy(exercise_data)
 
     progress = db.query(DomainProgress).filter(
         DomainProgress.user_id == current_user.id,
@@ -78,14 +93,8 @@ def log_exercise_result(
     ).first()
 
     if progress:
-        if exercise_data.exercise_type == "card_memory":
-            trials_presented = exercise_data.trials_presented or 1
-            trials_correct = exercise_data.trials_correct or (1 if exercise_data.correct else 0)
-            progress.total_attempts += trials_presented
-            progress.total_correct += trials_correct
-        else:
-            progress.total_attempts = (progress.total_attempts or 0) + exercise_data.trials_presented
-            progress.total_correct = (progress.total_correct or 0) + exercise_data.trials_correct
+        progress.total_attempts = (progress.total_attempts or 0) + trials_presented
+        progress.total_correct = (progress.total_correct or 0) + trials_correct
         db.commit()
 
     AdaptiveDifficultyService.update_difficulty(

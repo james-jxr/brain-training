@@ -1,7 +1,7 @@
 # App Specification: Brain Training App
 
-**Spec Version:** v1.2
-**Date:** 2026-04-29
+**Spec Version:** v1.3
+**Date:** 2026-04-30
 **Status:** Approved
 **Brief Reference:** Functional Requirements v1.0 (March 2026) + Design System v1 + Feedback Brief feedback-v1.0
 
@@ -25,6 +25,7 @@
 | v1.0 | 2026-04-21 | Password minimum length (8 characters) enforced on registration and account update via Pydantic validators. Feedback export endpoint (`GET /api/feedback`) is now admin-only (restricted to emails in `ADMIN_EMAILS` setting; returns 403 otherwise). Auth token storage migrated from `localStorage` to `sessionStorage` in `useAuth.jsx`; duplicate `useAuth.js` file removed. `BottomNav` no longer imports `useAuth`. `GoNoGoLegacy.jsx` retired and removed; the current Go/No-Go implementation lives in `GoNoGo.jsx`. `DomainProgress` null-safety fix: `total_attempts` and `total_correct` now coerce `None` to 0 before incrementing. Streak manager migrated to timezone-aware datetimes (`timezone.utc`); same-day sessions no longer increment streak count. `VisualCategorisation` internal helper renamed from `pick` to `pickRandom` (no user-facing change). `LifestyleLog` now logs errors to console on failed today-data fetch. |
 | v1.1 | 2026-04-29 | Mindfulness exercise added (guided breathing, 2-minute session, no scoring, 10 breath cycles). Session planner now always includes mindfulness as a third domain in every planned session. Within-session adaptive difficulty staircase rule added (`adjust_difficulty_in_session`): difficulty increases by 1 above 80%, decreases by 1 below 50%, clamped to [1, 10]; `adjusted_difficulty` returned on exercise attempt response. `FeedbackEntry` gains `project_id` field (default "brain-training"). `UserResponse` schema gains `has_completed_baseline` field. New `GET /api/progress/streak/history` endpoint returns 14-day session completion history. New `GET /api/progress/game-history` endpoint returns per-game score history (last 20 attempts per exercise type). `TrendChart` component upgraded to bar chart visualisation with external data support and `GAME_TYPE_LABELS` map. `useGameHistory` and `useStreakData` hooks added. `StreakTracker` component added. Auth token storage confirmed as `sessionStorage` throughout axios client. Baseline tests added (`test_baseline.py`) covering `has_completed_baseline` flag. Mindfulness unit tests added (`Mindfulness.test.jsx`). |
 | v1.2 | 2026-04-29 | Baseline router expanded: `POST /api/baseline/start` added (creates session, enforces eligibility via `next_baseline_eligible_date`, returns `baseline_number`); `POST /api/baseline/submit` extended (sets `onboarding_completed`, `has_completed_baseline`, `next_baseline_eligible_date = today + 180 days`, increments `baseline_number`, validates domain names, seeds/updates `DomainProgress`); `GET /api/baseline/next-eligible-date` added (returns `is_eligible` and `next_eligible_date`). Eligibility rule: request is blocked with HTTP 400 if `next_baseline_eligible_date` is strictly in the future; allowed when null or ≤ today. `BaselineResult.completed_at` migrated to timezone-aware `datetime.now(timezone.utc)`. Lifestyle history query corrected to filter on `logged_date` (date field) instead of `created_at` (datetime field), using `date.today() - timedelta(days=30)`. `BrainHealthScoreService.calculate_lifestyle_score` corrected to filter on `logged_date >= date.today() - timedelta(days=7)` instead of `created_at`. Streak manager constants extracted (`SECONDS_PER_HOUR = 3600`, `STREAK_EXPIRY_HOURS = 36`). Test suites substantially expanded: `test_baseline.py` now covers start/submit/next-eligible-date flows in full; `test_brain_health_score.py` rewritten with isolated test DB and full coverage of domain average, lifestyle score, and composite score; `test_lifestyle.py` added covering log creation/update, today endpoint, and 30-day history; `test_streak_manager.py` added. |
+| v1.3 | 2026-04-30 | `useGameHistory` and `useStreakData` hooks refactored to use `progressAPI` from the centralised axios client instead of raw `fetch` calls. `progressAPI` gains two new methods: `getGameHistory()` (calls `GET /api/progress/game-history`) and `getStreakHistory()` (calls `GET /api/progress/streak/history`). `useStreakData` error handling improved: errors now prefer `err.response?.data?.detail`, fall back to `err.message`, then fall back to the static string `'Failed to fetch streak data'`. axios 401 interceptor public-page list reordered to `['/', '/login', '/register']` (no functional change). Test suites added: `client.test.js` covering all API client exports; `useGameHistory.test.js` and `useStreakData.test.js` covering loading state, success, error, and mount behaviour. |
 
 ---
 
@@ -281,27 +282,11 @@ Free-play uses the same session API as structured training. The frontend (`FreeP
 | GET | /api/dashboard | Returns streak, total time, Brain Health Score, domain scores, lifestyle summary | Y |
 | GET | /api/progress/:domain | 30-day trend data for one domain | Y |
 | GET | /api/progress/brain-health-score | Score breakdown (cognitive + lifestyle factors) | Y |
-| GET | /api/progress/streak/history | Returns `current_streak`, `longest_streak`, and a `days` array covering the last 14 calendar days. Each day entry: `{ date: ISO string, completed: boolean, is_today: boolean }`. Used by the `StreakTracker` component. | Y |
-| GET | /api/progress/game-history | Returns per-exercise-type score history. Response: `{ games: { [exercise_type]: [{ date, score, difficulty }] } }`. Last 20 attempts per exercise type, oldest-first. Score is computed from `trials_correct / trials_presented * 100` where available, else from `attempt.score`, else 0. Used by the `useGameHistory` hook. | Y |
+| GET | /api/progress/streak/history | Returns `current_streak`, `longest_streak`, and a `days` array covering the last 14 calendar days. Each day entry: `{ date: ISO string, completed: boolean, is_today: boolean }`. Used by the `StreakTracker` component via the `useStreakData` hook (calls `progressAPI.getStreakHistory()`). | Y |
+| GET | /api/progress/game-history | Returns per-exercise-type score history. Response: `{ games: { [exercise_type]: [{ date, score, difficulty }] } }`. Last 20 attempts per exercise type, oldest-first. Score is computed from `trials_correct / trials_presented * 100` where available, else from `attempt.score`, else 0. Used by the `useGameHistory` hook (calls `progressAPI.getGameHistory()`). | Y |
 
 ### Lifestyle Logging
 
 | Method | Path | Description | Auth required? |
 |---|---|---|---|
-| GET | /api/lifestyle/today | Get today's lifestyle log (or empty) | Y |
-| POST | /api/lifestyle/log | Create or update today's lifestyle log | Y |
-| GET | /api/lifestyle/history | Last 30 days of lifestyle logs, filtered by `logged_date >= date.today() - timedelta(days=30)` (date field, not timestamp) | Y |
-
-### Account
-
-| Method | Path | Description | Auth required? |
-|---|---|---|---|
-| GET | /api/account | Get current user profile | Y |
-| PATCH | /api/account | Update email, password (≥ 8 characters enforced), or notification_time | Y |
-| DELETE | /api/account | Delete account and erase all personal data (GDPR) | Y |
-
-### Feedback
-
-| Method | Path | Description | Auth required? |
-|---|---|---|---|
-| POST | /api/feedback | Submit free-text feedback. Body: `{ page_context: string, feedback_text: string, session_id?: string }`. Server sets `project_id = "brain-training"` automatically. Response: `{ id: string, created_at: datetime
+| GET | /api/lifestyle/today | Get today's lifestyle

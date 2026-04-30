@@ -1,14 +1,12 @@
 import React, { useState, useCallback } from 'react';
 import Card from '../ui/Card';
 import ProgressBar from '../ui/ProgressBar';
+import { BASELINE_LEVEL_TO_DIFFICULTY, MAX_ROUNDS, INITIAL_LEVEL } from '../../constants/gameConstants';
 
 // ─── Difficulty mapping ───────────────────────────────────────────────────────
 // Internal levels: 1 = Easy, 2 = Medium, 3 = Hard
 // Maps to the numeric difficulty prop accepted by all exercise components.
-const LEVEL_TO_DIFFICULTY = { 1: 2, 2: 5, 3: 8 };
 const LEVEL_LABELS = { 1: 'Easy', 2: 'Medium', 3: 'Hard' };
-const MAX_ROUNDS = 10;
-const INITIAL_LEVEL = 1;
 
 // ─── 2-up / 1-down algorithm ─────────────────────────────────────────────────
 /**
@@ -132,7 +130,7 @@ const BaselineGameWrapper = ({ gameKey, gameName, GameComponent, onGameComplete 
     }
   }, [algoState, round, gameKey, onGameComplete, levelHistory]);
 
-  const currentDifficulty = LEVEL_TO_DIFFICULTY[algoState.level];
+  const currentDifficulty = BASELINE_LEVEL_TO_DIFFICULTY[algoState.level];
   const difficultyLabel = LEVEL_LABELS[algoState.level];
 
   return (

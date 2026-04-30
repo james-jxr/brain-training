@@ -7,15 +7,18 @@ import { accountAPI } from '../api/client';
 const Onboarding = () => {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
   const navigate = useNavigate();
 
   const handleComplete = async () => {
+    setSubmitError(null);
     setLoading(true);
     try {
       await accountAPI.markOnboardingComplete();
       navigate('/dashboard');
     } catch (err) {
       console.error('Failed to complete onboarding:', err);
+      setSubmitError('Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -85,6 +88,15 @@ const Onboarding = () => {
             <p style={{ marginBottom: 'var(--space-6)' }}>
               Start with a baseline assessment to establish your current cognitive level. This helps us customize your training plan. You can retake the baseline every 6 months to measure your overall improvement.
             </p>
+            {submitError && (
+              <p style={{
+                marginBottom: 'var(--space-4)',
+                color: 'var(--color-danger)',
+                fontSize: 'var(--text-sm)',
+              }}>
+                {submitError}
+              </p>
+            )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
               <Button
                 onClick={() => setStep(2)}

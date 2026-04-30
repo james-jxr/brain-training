@@ -38,7 +38,12 @@ class SessionPlannerService:
         sorted_domains = sorted(domain_scores.items(), key=lambda x: x[1])
 
         max_score = max(domain_scores.values()) if domain_scores else 0
-        priority_domain = sorted_domains[0][0] if sorted_domains[0][1] < max_score - 10 else sorted_domains[0][0]
+
+        # If the weakest domain is significantly behind (more than 10 points below
+        # the maximum), prioritise it to help the user catch up. Otherwise, the
+        # domains are roughly balanced, so prioritise the highest-scoring domain
+        # to maintain momentum via rotation.
+        priority_domain = sorted_domains[0][0] if sorted_domains[0][1] < max_score - 10 else sorted_domains[-1][0]
         other_domains = [d for d in domains if d != priority_domain]
         selected_domain_2 = other_domains[0] if other_domains else domains[0]
 

@@ -3,6 +3,18 @@ from sqlalchemy import and_
 from backend.models import DomainProgress, LifestyleLog
 from datetime import datetime, timedelta, timezone, date
 
+DOMAIN_SCORE_WEIGHT = 0.6
+LIFESTYLE_SCORE_WEIGHT = 0.4
+TARGET_EXERCISE_MINUTES = 30
+TARGET_SLEEP_HOURS = 7
+MAX_LIFESTYLE_FACTOR_SCORE = 25
+STRESS_LOW_THRESHOLD = 2
+STRESS_HIGH_THRESHOLD = 5
+STRESS_SCORE_DIVISOR = 3
+MOOD_THRESHOLD = 4
+MOOD_SCALE_MAX = 5
+
+
 class BrainHealthScoreService:
     @staticmethod
     def calculate_domain_average(db: Session, user_id: int) -> float:
@@ -45,25 +57,25 @@ class BrainHealthScoreService:
         count = len(logs)
 
         for log in logs:
-            if log.exercise_minutes >= 30:
-                exercise_score += 25
+            if log.exercise_minutes >= TARGET_EXERCISE_MINUTES:
+                exercise_score += MAX_LIFESTYLE_FACTOR_SCORE
             else:
-                exercise_score += (log.exercise_minutes / 30) * 25
+                exercise_score += (log.exercise_minutes / TARGET_EXERCISE_MINUTES) * MAX_LIFESTYLE_FACTOR_SCORE
 
-            if log.sleep_hours >= 7:
-                sleep_score += 25
+            if log.sleep_hours >= TARGET_SLEEP_HOURS:
+                sleep_score += MAX_LIFESTYLE_FACTOR_SCORE
             else:
-                sleep_score += (log.sleep_hours / 7) * 25
+                sleep_score += (log.sleep_hours / TARGET_SLEEP_HOURS) * MAX_LIFESTYLE_FACTOR_SCORE
 
-            if log.stress_level <= 2:
-                stress_score += 25
+            if log.stress_level <= STRESS_LOW_THRESHOLD:
+                stress_score += MAX_LIFESTYLE_FACTOR_SCORE
             else:
-                stress_score += max(0, (5 - log.stress_level) / 3 * 25)
+                stress_score += max(0, (STRESS_HIGH_THRESHOLD - log.stress_level) / STRESS_SCORE_DIVISOR * MAX_LIFESTYLE_FACTOR_SCORE)
 
-            if log.mood >= 4:
-                mood_score += 25
+            if log.mood >= MOOD_THRESHOLD:
+                mood_score += MAX_LIFESTYLE_FACTOR_SCORE
             else:
-                mood_score += (log.mood / 5) * 25
+                mood_score += (log.mood / MOOD_SCALE_MAX) * MAX_LIFESTYLE_FACTOR_SCORE
 
         avg_exercise = exercise_score / count
         avg_sleep = sleep_score / count
@@ -80,6 +92,6 @@ class BrainHealthScoreService:
         domain_avg = BrainHealthScoreService.calculate_domain_average(db, user_id)
         lifestyle_score = BrainHealthScoreService.calculate_lifestyle_score(db, user_id)
 
-        brain_health = (domain_avg * 0.6) + (lifestyle_score * 0.4)
+        brain_health = (domain_avg * DOMAIN_SCORE_WEIGHT) + (lifestyle_score * LIFESTYLE_SCORE_WEIGHT)
 
         return int(min(100, max(0, brain_health)))
