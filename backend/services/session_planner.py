@@ -23,6 +23,8 @@ class SessionPlannerService:
         domain_scores = {}
 
         for domain in domains:
+            # Re-read from the database each time to pick up any mid-session updates
+            # to current_difficulty and last_score rather than using a stale cache.
             progress = db.query(DomainProgress).filter(
                 and_(
                     DomainProgress.user_id == user_id,

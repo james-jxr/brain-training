@@ -678,3 +678,51 @@ Each entry is appended by the daily feedback pipeline task.
 **Test result:** PASSED (iteration 1):     at [90mfile:///home/runner/work/brain-training/brain-training/frontend/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2955:64
 **PR:** (none)
 **Errors:** (none)
+
+## Run — 2026-04-30 (automated) [pipeline v3 — implementation]
+**Status:** completed
+**Issues implemented:**
+  - #189: Deduplicate BASELINE_LEVEL_TO_DIFFICULTY constant from FreePlay.jsx
+  - #178: Extract shared navLinkStyle function in BottomNav.jsx
+  - #154: Replace naive datetime.utcnow column default in skill_assessment.py
+  - #68: Fix 401 error when loading game history on Progress page
+  - #44: Fix adaptive difficulty not persisting across sessions
+**Issues failed:**
+  (none)
+**Issues deferred:**
+  - #195: Technical debt in review_pipeline.py — requires a design decision about whether to fully implement multi-file support or simplify to a single path. Classifier failed to classify, suggesting ambiguity. Deferred pending human review.
+  - #190: Rename `raw` to `raw_response` across 5+ files (synthesizer.py, audit_classifier.py, prioritiser.py, design_reviewer.py, pipeline_reviewer.py). Medium complexity rename touching multiple files; deferring to avoid compounding risk with selected items.
+  - #184: Requires determining whether calculateBrainHealthScore in frontend/src/utils/scoring.js is used or dead code before deciding to remove or sync it. Needs code archaeology before implementation.
+  - #176: Hardcoded hex colors in Stroop.jsx colorMap — requires confirming CSS custom property token names exist in the design system before replacing. Deferred to batch with other color token issues.
+  - #175: Hardcoded hex colors in VisualCategorisation.jsx — part of a cluster of color token issues. Deferred to batch with issues 171-176 in a dedicated color-token run.
+  - #174: Hardcoded hex colors in CardMemoryGame.jsx — part of the color token cluster. Deferred to batch with issues 171-176.
+  - #173: Hardcoded hex colors in GoNoGo.jsx — part of the color token cluster. Deferred to batch with issues 171-176.
+  - #172: Hardcoded hex colors in DomainScoreCard.jsx — part of the color token cluster, overlaps with issues 97 and 98. Deferred to batch.
+  - #171: Hardcoded hex colors in BrainHealthGauge.jsx — overlaps with issues 97 and 98 which already have design agent comments. Deferred to batch all color token changes together after token names are confirmed.
+  - #166: review_pipeline.py refactor (400+ lines) — high effort, touches core pipeline infrastructure. Deferred to avoid risk in this run.
+  - #165: implementation_pipeline.py refactor (500+ lines) — high complexity, core pipeline orchestration. Deferred to a dedicated refactor run.
+  - #164: NBack.jsx complexity refactor — medium complexity exercise component with deeply nested useEffect chains. Deferred to a dedicated frontend refactor run.
+  - #163: VisualCategorisation.jsx complexity refactor (300+ lines) — large component split. Issue #47 also touches this component; running both simultaneously would compound risk.
+  - #162: GoNoGo.jsx complexity refactor — large component split. Deferred to a dedicated frontend refactor run.
+  - #146: Pipeline version upgrade (no version → v3) — administrative orchestrator command, not a code change. Cannot be implemented by the build agent via file edits.
+  - #145: CardMemoryGame.jsx complexity refactor — previous attempt returned empty response. Multiple CardMemory issues (67, 75, 48) are also in the queue; batching them risks compound failures. Deferred.
+  - #144: adaptive_baseline.py handler refactor — medium complexity. Previous attempt returned empty response. Deferred to retry in a lighter run.
+  - #143: sessions.py log_exercise_result refactor (80-line handler) — overlaps with issue #44 (adaptive difficulty fix) which is selected. Running both simultaneously on sessions.py risks merge conflicts. Deferred.
+  - #142: baseline_number hardcoded to 1 in sessions.py — overlaps with sessions.py changes in issue #44. Multiple failed attempts with test failures. Deferred to a separate run after #44 stabilises.
+  - #138: FreePlay.jsx error handling for session start failure — medium complexity with clear design spec. Previous attempt returned empty response. Deferred to next run; issue #189 (FreePlay constant dedup) is lower risk and should land first.
+  - #137: feedback.py authentication enforcement — backend auth change with multiple prior test failures. Deferred to a run where it can be the primary focus.
+  - #118: BottomNav.jsx inline styles to CSS class — two prior failed attempts including a test failure in VisualCategorisation.test.jsx (unrelated but broke the run). Issue #178 covers the same file with a different approach and is selected instead.
+  - #98: DomainScoreCard.jsx hardcoded color literals — design agent comment was unparseable, token names unconfirmed. Deferred until token names are verified.
+  - #97: BrainHealthGauge.jsx hardcoded color literals — design agent comment was unparseable. Deferred until token names are verified.
+  - #75: CardMemory mobile scroll overflow — 6 prior failed attempts (failed_impl_count=1 but comment history shows many). Multiple test failures from unrelated causes. Deferred to a CardMemory-focused run.
+  - #69: Dashboard domain boxes show 0 sessions — multiple failed attempts. Requires seeing Dashboard.jsx + progress API together. Deferred to next run as a standalone focused item.
+  - #67: CardMemory reveal correct card on wrong guess — multiple failed attempts. Deferred to a CardMemory-focused run alongside #75 and #145.
+  - #66: DigitSpan 2-up/1-down staircase — mechanic change touching both frontend and backend. Multiple failed attempts. Deferred to a dedicated mechanics run.
+  - #53: Guided breathing session from Dashboard — feature involving lifestyle logging integration. One failed attempt. Medium complexity feature requiring careful scoping. Deferred to a feature run.
+  - #49: Level Up/Down message on session results — touches adaptive difficulty service and session summary UI. Multiple failed attempts, including backend test failures caused by `adjust_difficulty_in_session` signature change. Depends on issue #44 being resolved first.
+  - #48: CardMemory more interesting images — design change requiring new icon assets (Lucide React). Multiple failed attempts. Deferred to a CardMemory-focused run.
+  - #47: VisualCategorisation three-rounds mechanic — significant mechanic overhaul of a 300+ line component. One failed attempt. High effort; deferred.
+**Spec version:** v1.3
+**Test result:** PASSED (iteration 1):     at [90mfile:///home/runner/work/brain-training/brain-training/frontend/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2955:64
+**PR:** (none)
+**Errors:** (none)

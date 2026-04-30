@@ -11,8 +11,7 @@ export function useGameHistory() {
       try {
         setLoading(true);
         setError(null);
-        const token = sessionStorage.getItem('access_token');
-        const historyData = await progressAPI.getGameHistory(token);
+        const historyData = await progressAPI.getGameHistory();
         setGameHistory(historyData.data.games);
       } catch (err) {
         setError(err.message);

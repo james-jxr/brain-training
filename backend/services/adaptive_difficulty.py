@@ -4,18 +4,26 @@ from sqlalchemy import desc, and_
 from datetime import datetime, timezone
 
 
-def adjust_difficulty_in_session(current_difficulty: int, last_score: float) -> int:
-    """Simple staircase rule for within-session difficulty adaptation.
+def adjust_difficulty_in_session(current_difficulty: int, last_score: float, consecutive_correct: int = 0) -> int:
+    """2-up/1-down staircase rule for within-session difficulty adaptation.
 
-    - If the user scored above 80% on the last exercise, increase difficulty by 1.
-    - If below 50%, decrease difficulty by 1.
+    - 2-up: if the user has now scored above 80% on 2 consecutive exercises,
+      increase difficulty by 1.
+    - 1-down: if the user scored below 50% on the last exercise, decrease
+      difficulty by 1.
     - Otherwise keep the same.
     - Clamps result to [1, 10].
+
+    Args:
+        current_difficulty: The current difficulty level (1-10).
+        last_score: The accuracy score (0-100) for the most recent exercise.
+        consecutive_correct: Number of consecutive exercises scored above 80%
+            including the current one.
     """
-    if last_score > 80:
-        new_difficulty = current_difficulty + 1
-    elif last_score < 50:
+    if last_score < 50:
         new_difficulty = current_difficulty - 1
+    elif last_score > 80 and consecutive_correct >= 2:
+        new_difficulty = current_difficulty + 1
     else:
         new_difficulty = current_difficulty
     return max(1, min(10, new_difficulty))
@@ -47,8 +55,7 @@ class AdaptiveDifficultyService:
                 last_score=latest_score
             )
             db.add(progress)
-            db.commit()
-            db.refresh(progress)
+            db.flush()
 
         progress.last_score = latest_score
 
