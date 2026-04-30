@@ -228,18 +228,18 @@ def _run_tests() -> tuple[bool, str, bool]:
         passed = False
     results.append(f"Frontend: {'PASSED' if frontend_ok else 'FAILED'}\n{frontend_out}")
 
-    combined_output = "\n\n".join(results)
+    combined = "\n\n".join(results)
+    stripped = _ANSI_RE.sub('', combined)
 
-    # Detect infrastructure errors
+    # Detect infrastructure errors vs real test failures
     infra_error = False
     if not passed:
-        lower_out = combined_output.lower()
-        has_test_failure = bool(re.search(r'\d+ failed', lower_out))
-        has_infra = any(pat.lower() in lower_out for pat in _INFRA_ERROR_PATTERNS)
-        if has_infra and not has_test_failure:
+        has_test_failure = bool(re.search(r'(FAILED|AssertionError|assert\s)', stripped))
+        has_infra_error = any(pat.lower() in stripped.lower() for pat in _INFRA_ERROR_PATTERNS)
+        if has_infra_error and not has_test_failure:
             infra_error = True
 
-    return passed, combined_output, infra_error
+    return passed, stripped, infra_error
 
 def _extract_failing_info(test_output: str) -> tuple[list, list]:
     backend_files = set()
