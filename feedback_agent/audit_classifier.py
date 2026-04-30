@@ -12,21 +12,18 @@ def classify_audit_findings(
     audit_findings: list[dict],
     coord_findings: list[dict],
     system_prompt: str,
-) -> tuple[list[dict], dict]:
+) -> list[dict]:
     """
     Send findings to audit_findings_agent for routing classification.
 
-    Returns a 2-tuple of:
-      - list of classification dicts, each containing:
-          {finding_id, table, routing, design_agent, rationale}
-      - usage dict containing token counts:
-          {input_tokens, output_tokens}
+    Returns a list of classification dicts:
+      {finding_id, table, routing, design_agent, rationale}
 
     routing: "ready_to_implement" | "needs_design_review" | "needs_human_review"
     design_agent: "functional_design" | "interaction_design" | null
     """
     if not audit_findings and not coord_findings:
-        return [], {}
+        return []
 
     entries = []
     for f in audit_findings:
@@ -66,14 +63,14 @@ def classify_audit_findings(
     )
     duration_ms = int((time.monotonic() - t0) * 1000)
 
-    raw_response = msg.content[0].text.strip()
-    if raw_response.startswith("```"):
-        raw_response = raw_response.split("```")[1]
-        if raw_response.startswith("json"):
-            raw_response = raw_response[4:]
-    raw_response = raw_response.strip()
+    raw = msg.content[0].text.strip()
+    if raw.startswith("```"):
+        raw = raw.split("```")[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+    raw = raw.strip()
 
-    result = json.loads(raw_response)
+    result = json.loads(raw)
     classifications = result.get("classifications", [])
     print(f"  [audit_classifier] classified {len(classifications)} finding(s) "
           f"in {duration_ms}ms (in={msg.usage.input_tokens} out={msg.usage.output_tokens})")
