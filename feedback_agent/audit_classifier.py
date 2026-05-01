@@ -6,6 +6,7 @@ import json
 import time
 
 AUDIT_MODEL = "claude-sonnet-4-6"
+_BATCH_SIZE = 20  # max findings per API call to avoid output truncation
 
 
 def classify_audit_findings(
@@ -23,7 +24,7 @@ def classify_audit_findings(
     design_agent: "functional_design" | "interaction_design" | null
     """
     if not audit_findings and not coord_findings:
-        return []
+        return [], {"input_tokens": 0, "output_tokens": 0}
 
     entries = []
     for f in audit_findings:
@@ -48,33 +49,42 @@ def classify_audit_findings(
             "route_to": f.get("route_to", ""),
         })
 
-    user_message = (
-        f"Classify the following {len(entries)} finding(s).\n\n"
-        + json.dumps(entries, indent=2)
-    )
-
-    t0 = time.monotonic()
     client = anthropic.Anthropic()
-    msg = client.messages.create(
-        model=AUDIT_MODEL,
-        max_tokens=4096,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_message}],
-    )
-    duration_ms = int((time.monotonic() - t0) * 1000)
+    all_classifications = []
+    total_usage = {"input_tokens": 0, "output_tokens": 0}
+    total_ms = 0
 
-    raw = msg.content[0].text.strip()
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
-    raw = raw.strip()
+    batches = [entries[i:i + _BATCH_SIZE] for i in range(0, len(entries), _BATCH_SIZE)]
+    for batch_idx, batch in enumerate(batches):
+        user_message = (
+            f"Classify the following {len(batch)} finding(s).\n\n"
+            + json.dumps(batch, indent=2)
+        )
+        t0 = time.monotonic()
+        msg = client.messages.create(
+            model=AUDIT_MODEL,
+            max_tokens=8192,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_message}],
+        )
+        total_ms += int((time.monotonic() - t0) * 1000)
+        total_usage["input_tokens"] += msg.usage.input_tokens
+        total_usage["output_tokens"] += msg.usage.output_tokens
 
-    result = json.loads(raw)
-    classifications = result.get("classifications", [])
-    print(f"  [audit_classifier] classified {len(classifications)} finding(s) "
-          f"in {duration_ms}ms (in={msg.usage.input_tokens} out={msg.usage.output_tokens})")
-    return classifications, {
-        "input_tokens": msg.usage.input_tokens,
-        "output_tokens": msg.usage.output_tokens,
-    }
+        raw = msg.content[0].text.strip()
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        raw = raw.strip()
+
+        result = json.loads(raw)
+        batch_classifications = result.get("classifications", [])
+        all_classifications.extend(batch_classifications)
+        if len(batches) > 1:
+            print(f"  [audit_classifier] batch {batch_idx + 1}/{len(batches)}: "
+                  f"{len(batch_classifications)} classified")
+
+    print(f"  [audit_classifier] classified {len(all_classifications)} finding(s) "
+          f"in {total_ms}ms (in={total_usage['input_tokens']} out={total_usage['output_tokens']})")
+    return all_classifications, total_usage
