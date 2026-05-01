@@ -428,6 +428,12 @@ def run_implementation_pipeline():
     issues = fetch_ready_to_implement_issues(GITHUB_TOKEN, GITHUB_REPOSITORY)
     counts["issues_available"] = len(issues)
 
+    issues = [i for i in issues if "pipeline-failure" not in i.get("labels", [])]
+    pipeline_excluded = counts["issues_available"] - len(issues)
+    if pipeline_excluded:
+        print(f"  ({pipeline_excluded} pipeline-failure issue(s) excluded — handled by repair pipeline)")
+    counts["issues_available"] = len(issues)
+
     if not issues:
         print("  No ready-to-implement issues. Nothing to do.")
         run_summary["status"] = "no_changes"
