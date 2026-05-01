@@ -270,18 +270,21 @@ def run_review_pipeline():
     spec_text = _read_local(SPEC_CANDIDATES)
     design_text = _read_local(DESIGN_CANDIDATES)
     file_tree = build_file_tree(APP_ROOT)
-    system_prompt = get_system_prompt()
+    synthesis_prompt = get_system_prompt("feedback_synthesis_agent") or ""
+    routing_prompt = get_system_prompt("feedback_agent") or ""
 
     # ── Step 6: Synthesise and route feedback ────────────────────────────────
     print("[Step 6] Synthesising and routing feedback...")
     processed_ids = []
     if feedback_rows:
-        synthesis = synthesise_feedback(
-            feedback_rows, spec_text, file_tree, system_prompt
+        items, synth_usage = synthesise_feedback(
+            feedback_rows, spec_text, file_tree, synthesis_prompt, routing_prompt
         )
+        _log_performance("feedback_synthesis_agent", "synthesise_feedback", True,
+                         synth_usage.get("input_tokens", 0), synth_usage.get("output_tokens", 0))
         # ── Step 7: Create/update GitHub issues for feedback ─────────────────
         print("[Step 7] Creating/updating GitHub issues for feedback...")
-        for item in synthesis:
+        for item in items:
             issue_num = create_feedback_issue(item)
             if issue_num:
                 counts["issues_created"] += 1
