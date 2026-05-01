@@ -2,7 +2,7 @@ name: Nightly Implementation Pipeline
 
 on:
   schedule:
-    - cron: '0 3 * * *'   # UTC — runs after the review pipeline (04:00)
+    - cron: '0 5 * * *'   # UTC — runs after the review pipeline (04:00)
   workflow_dispatch:             # enables manual trigger from the Actions tab
   workflow_run:
     workflows: ["Nightly Review Pipeline"]
