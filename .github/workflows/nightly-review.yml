@@ -2,7 +2,7 @@ name: Nightly Review Pipeline
 
 on:
   schedule:
-    - cron: '0 2 * * *'   # UTC — runs after the nightly audit (03:00)
+    - cron: '0 4 * * *'   # UTC — runs after the nightly audit (03:00)
   workflow_dispatch:             # enables manual trigger from the Actions tab
 
 jobs:
