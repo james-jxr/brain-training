@@ -222,6 +222,11 @@ def _run_tests() -> tuple[bool, str, bool]:
 
     frontend_pkg = frontend_cwd / "package.json"
     if frontend_pkg.exists():
+        node_modules = frontend_cwd / "node_modules"
+        if not node_modules.exists():
+            print("  [tests] node_modules not found — running npm install...")
+            subprocess.run(["npm", "install", "--silent"],
+                           cwd=str(frontend_cwd), timeout=120)
         frontend_result = subprocess.run(
             ["npm", "test", "--", "--watchAll=false", "--passWithNoTests"],
             cwd=str(frontend_cwd), capture_output=True, text=True, env=env
@@ -260,7 +265,7 @@ def _extract_failing_info(test_output: str) -> tuple[list, list]:
             frontend_files.add(frontend_match.group(1))
     return list(backend_files), list(frontend_files)
 
-def _auto_fix_tests(test_output: str, changed_files: dict) -> bool:
+def _auto_fix_tests(test_output: str, changed_files: dict, classification: str = "") -> bool:
     backend_tests, frontend_tests = _extract_failing_info(test_output)
     all_test_paths = backend_tests + frontend_tests
     if not all_test_paths:
@@ -293,7 +298,8 @@ def _auto_fix_tests(test_output: str, changed_files: dict) -> bool:
         system=system_prompt,
         messages=[
             {"role": "user", "content": (
-                "Fix the failing tests shown below. Return only the changed files as a JSON object — "
+                (f"Failure classification: {classification}\n\n" if classification else "")
+                + "Fix the failing tests shown below. Return only the changed files as a JSON object — "
                 "no prose, no markdown. Start your response with { and end with }.\n\n"
                 f"## Test output\n\n```\n{test_output[:8000]}\n```\n\n"
                 f"## Failing files with content\n\n{file_contents[:20000]}"
@@ -396,9 +402,48 @@ def _extract_finding_id(issue_body: str) -> str | None:
     return m.group(1) if m else None
 
 
+# ── Environment validation ────────────────────────────────────────────────────────
+
+def _validate_environment():
+    required = {
+        "ANTHROPIC_API_KEY": "Anthropic API key",
+        "GITHUB_TOKEN": "GitHub token",
+        "GITHUB_REPOSITORY": "target repository (e.g. james-jxr/brain-training)",
+    }
+    missing = [(k, v) for k, v in required.items() if not os.environ.get(k)]
+    if missing:
+        for key, desc in missing:
+            print(f"  FATAL: {key} not set ({desc})")
+        sys.exit(1)
+
+
+# ── Test failure classifier ───────────────────────────────────────────────────────
+
+def _classify_test_failure(test_output: str) -> str:
+    """Returns: 'update_test' | 'fix_source' | 'flaky'"""
+    client = anthropic.Anthropic()
+    msg = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=100,
+        messages=[{"role": "user", "content": (
+            "Classify this test failure in one word. Reply with exactly one of: "
+            "update_test (the test assertion is wrong for new behaviour), "
+            "fix_source (the source code has a regression), "
+            "flaky (timing/environment issue, no code change needed).\n\n"
+            f"```\n{test_output[:3000]}\n```"
+        )}],
+    )
+    raw = msg.content[0].text.strip().lower()
+    for label in ("update_test", "fix_source", "flaky"):
+        if label in raw:
+            return label
+    return "fix_source"
+
+
 # ── Main ─────────────────────────────────────────────────────────────────────────
 
 def run_implementation_pipeline():
+    _validate_environment()
     print(f"\n{'='*60}")
     print(f"Implementation Pipeline v3 — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
     print(f"Project: {PROJECT_ID}")
@@ -629,6 +674,7 @@ def run_implementation_pipeline():
         test_passed = True
         run_summary["test_result"] = "SKIPPED (SKIP_TESTS=1)"
     else:
+        classification = ""
         for iteration in range(1, MAX_FIX_ITERATIONS + 1):
             test_passed, test_output, infra_error = _run_tests()
             last_test_output = test_output
@@ -645,9 +691,12 @@ def run_implementation_pipeline():
                 if infra_error:
                     print("  Infrastructure error detected — skipping auto-fix, issues will NOT be marked failed")
                     break
+                if iteration == 1:
+                    classification = _classify_test_failure(test_output)
+                    print(f"  [classifier] failure type: {classification}")
                 if iteration < MAX_FIX_ITERATIONS:
                     print("  Auto-fixing...")
-                    fixed = _auto_fix_tests(test_output, all_changed_files)
+                    fixed = _auto_fix_tests(test_output, all_changed_files, classification)
                     if not fixed:
                         print("  No fixes suggested — stopping early")
                         break
