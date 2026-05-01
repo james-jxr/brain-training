@@ -188,6 +188,7 @@ def _write_run_summary(counts: dict):
 _INFRA_ERROR_PATTERNS = (
     "EACCES", "ENOMEM", "ENOSPC",
     "permission denied", "Cannot allocate memory",
+    "CACError", "Unknown option `--watchAll`",
 )
 
 
@@ -227,8 +228,20 @@ def _run_tests() -> tuple[bool, str, bool]:
             print("  [tests] node_modules not found — running npm install...")
             subprocess.run(["npm", "install", "--silent"],
                            cwd=str(frontend_cwd), timeout=120)
+        # Detect test runner from package.json to pick the right flags.
+        # Jest uses --watchAll=false; Vitest uses `vitest run` (already non-watch).
+        try:
+            import json as _json
+            pkg_data = _json.loads(frontend_pkg.read_text())
+            test_script = pkg_data.get("scripts", {}).get("test", "")
+        except Exception:
+            test_script = ""
+        if "vitest" in test_script:
+            test_cmd = ["npx", "vitest", "run", "--passWithNoTests"]
+        else:
+            test_cmd = ["npm", "test", "--", "--watchAll=false", "--passWithNoTests"]
         frontend_result = subprocess.run(
-            ["npm", "test", "--", "--watchAll=false", "--passWithNoTests"],
+            test_cmd,
             cwd=str(frontend_cwd), capture_output=True, text=True, env=env
         )
         frontend_out = (frontend_result.stdout + frontend_result.stderr).strip()
