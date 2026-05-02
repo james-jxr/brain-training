@@ -104,7 +104,12 @@ def synthesise_feedback(
         if raw.startswith("json"):
             raw = raw[4:]
     raw = raw.strip()
-    items = json.loads(raw)
+    try:
+        items = json.loads(raw)
+    except json.JSONDecodeError as e:
+        print(f"  [synthesizer] ERROR: synthesis agent returned non-JSON: {e}")
+        print(f"  [synthesizer] raw response (first 300): {raw[:300]}")
+        return [], synth_usage
     for item in items:
         item.setdefault("source", "feedback")
 
