@@ -52,7 +52,13 @@ def prioritise_issues(
             raw = raw[4:]
     raw = raw.strip()
 
-    result = json.loads(raw)
+    try:
+        result = json.loads(raw)
+    except json.JSONDecodeError as e:
+        print(f"  [prioritiser] ERROR: agent returned non-JSON: {e}")
+        print(f"  [prioritiser] raw response (first 300): {raw[:300]}")
+        usage = {"input_tokens": msg.usage.input_tokens, "output_tokens": msg.usage.output_tokens}
+        return [], [], usage
     selected = result.get("selected", [])
     deferred = result.get("deferred", [])
     rationale = result.get("run_rationale", "")
