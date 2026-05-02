@@ -55,6 +55,9 @@ DATABASE_URL="sqlite:////tmp/brain_training_test.db" python -m pytest backend/te
 # Frontend
 cd frontend && npm run test          # single run
 cd frontend && npm run test:watch    # watch mode
+
+# Run all tests (backend + frontend) in one shot
+./scripts/run-tests.sh
 ```
 
 ## Architecture
@@ -70,7 +73,7 @@ FastAPI (backend/main.py)
 SQLite / PostgreSQL
 ```
 
-The Vite dev server proxy (`vite.config.js`) forwards `/api/*` to `localhost:8000`, so the frontend calls relative `/api/` paths. In production the frontend build is served separately; the backend URL is set via `VITE_API_BASE_URL`.
+The Vite dev server proxy (`vite.config.js`) forwards `/api/*` to `localhost:8000`, so the frontend calls relative `/api/` paths. In production the frontend build is served separately; the backend URL is set via `VITE_API_URL`.
 
 ### Authentication
 
@@ -88,6 +91,7 @@ JWT tokens are stored in both **httpOnly cookies** (browser security) and return
 | `backend/services/brain_health_score.py` | Composite score: 60% cognitive average + 40% lifestyle |
 | `backend/services/streak_manager.py` | 36-hour streak window, UTC datetimes |
 | `backend/services/exercise_generator.py` | Generates per-difficulty exercise payloads (symbol matching, visual categorisation) |
+| `backend/services/session_helpers.py` | `get_next_baseline_number()` — sequential baseline counter within a transaction |
 
 There are 8 routers: `auth`, `baseline`, `adaptive_baseline`, `sessions`, `progress`, `lifestyle`, `account`, `feedback`.
 
@@ -101,6 +105,7 @@ There are 8 routers: `auth`, `baseline`, `adaptive_baseline`, `sessions`, `progr
 | `src/components/exercises/` | 6 exercise components (see below) |
 | `src/components/ui/FeedbackWidget.jsx` | Floating feedback button — overlaid on all authenticated pages |
 | `src/components/ui/PostGameFeedback.jsx` | Optional post-session feedback modal (in `SessionSummary`) |
+| `src/components/nav/BottomNav.jsx` | Mobile bottom navigation — rendered on all authenticated pages alongside `FeedbackWidget` |
 
 ### Cognitive Domains & Exercises
 
@@ -109,8 +114,11 @@ There are 8 routers: `auth`, `baseline`, `adaptive_baseline`, `sessions`, `progr
 | Processing Speed | `CardMemoryGame.jsx` |
 | Working Memory | `NBack.jsx`, `DigitSpan.jsx` |
 | Attention | `GoNoGo.jsx`, `Stroop.jsx`, `VisualCategorisation.jsx` |
+| Mindfulness | `Mindfulness.jsx` (guided breathing, no scoring, always included as the 3rd domain in every planned session) |
 
 Executive Function and Episodic Memory are deferred to v1.1. `SymbolMatching.jsx` is hidden (replacement pending).
+
+Free-play mode (`FreePlay.jsx`, route `/play/:gameKey`) lets users launch any exercise outside of a session.
 
 ### Database Models
 
@@ -135,7 +143,7 @@ Both POST to `/api/feedback`. The export endpoint `GET /api/feedback` is restric
 - `ADMIN_EMAILS` — comma-separated emails allowed to call the feedback export endpoint
 
 **Frontend (`frontend/.env`):**
-- `VITE_API_BASE_URL` — backend URL (not needed in dev; Vite proxy handles it)
+- `VITE_API_URL` — backend URL (not needed in dev; Vite proxy handles it; used in `src/api/client.js`)
 
 ## Feedback Agent Pipeline
 
@@ -155,3 +163,5 @@ DRY_RUN=1 python -m feedback_agent.implementation_pipeline
 ```
 
 `agent-config.json` at the repo root defines which Claude agents are active and maps to design docs under `docs/` (`product-brief.md`, `functional-spec.md`, `design-guide.md`, `technical-architecture.md`).
+
+`spec.md` at the repo root is the living versioned app specification (currently v1.4). It is updated automatically by the implementation pipeline after each feature is shipped.
