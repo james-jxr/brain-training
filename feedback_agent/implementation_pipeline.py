@@ -251,6 +251,7 @@ def _run_tests() -> tuple[bool, str, bool]:
         results.append(f"Frontend: {'PASSED' if frontend_ok else 'FAILED'}\n{frontend_out}")
 
     combined_output = "\n\n".join(results) if results else "No tests found."
+    combined_output = _ANSI_RE.sub('', combined_output)
 
     # Detect infrastructure errors
     infra_error = False
