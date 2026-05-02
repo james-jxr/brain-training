@@ -91,9 +91,13 @@ def update_tests(changed_file_map: dict) -> tuple[dict, dict]:
         )
     else:
         # Local fallback: full template as single user message
-        prompt = (load_prompt("test_update")
-                  .replace("{changed_files_with_content}", changed_section)
-                  .replace("{existing_test_files}", test_section))
+        try:
+            prompt = (load_prompt("test_update")
+                      .replace("{changed_files_with_content}", changed_section)
+                      .replace("{existing_test_files}", test_section))
+        except FileNotFoundError:
+            print("  [test_updater] WARNING: agent prompt unavailable (Supabase down, no local fallback); skipping test update")
+            return {}
         message = client.messages.create(
             model="claude-sonnet-4-6",
             max_tokens=16000,
