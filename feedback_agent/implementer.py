@@ -134,10 +134,14 @@ def implement_change(item: dict) -> tuple[dict, dict]:
         )
     else:
         # Local fallback: full template as single user message
-        prompt = (load_prompt("implementation")
-                  .replace("{title}", item["title"])
-                  .replace("{description}", item["description"])
-                  .replace("{file_contents}", file_contents_text))
+        try:
+            prompt = (load_prompt("implementation")
+                      .replace("{title}", item["title"])
+                      .replace("{description}", item["description"])
+                      .replace("{file_contents}", file_contents_text))
+        except FileNotFoundError:
+            print("  [implementer] WARNING: agent prompt unavailable (Supabase down, no local fallback); skipping item")
+            return {}, {"input_tokens": 0, "output_tokens": 0}
         message = client.messages.create(
             model="claude-sonnet-4-6",
             max_tokens=16000,
