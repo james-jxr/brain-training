@@ -78,7 +78,12 @@ def classify_audit_findings(
                 raw = raw[4:]
         raw = raw.strip()
 
-        result = json.loads(raw)
+        try:
+            result = json.loads(raw)
+        except json.JSONDecodeError as e:
+            print(f"  [audit_classifier] ERROR: batch {batch_idx + 1} returned non-JSON: {e}")
+            print(f"  [audit_classifier] raw response (first 300): {raw[:300]}")
+            continue
         batch_classifications = result.get("classifications", [])
         all_classifications.extend(batch_classifications)
         if len(batches) > 1:
