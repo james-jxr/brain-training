@@ -80,7 +80,11 @@ def update_spec(repo_root: str, app_root: str) -> str:
 
     today = date.today().isoformat()
     from feedback_agent.agent_loader import get_system_prompt
-    template = get_system_prompt("spec_updater_agent") or (PROMPTS_DIR / "spec_update.md").read_text()
+    try:
+        template = get_system_prompt("spec_updater_agent") or (PROMPTS_DIR / "spec_update.md").read_text()
+    except FileNotFoundError:
+        print("  [spec_updater] WARNING: spec_updater_agent prompt unavailable (Supabase down, no local fallback); skipping spec update")
+        return current_version
     prompt = (template
               .replace("{current_version}", current_version)
               .replace("{today}", today)
