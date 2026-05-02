@@ -76,7 +76,7 @@ SPEC_CANDIDATES = ["docs/functional-spec.md", "spec.md", "docs/spec.md"]
 DESIGN_CANDIDATES = ["docs/design-guide.md", "design-guide.md", "docs/design.md"]
 
 
-# ── Supabase helpers ──────────────────────────────────────────────────────────────────────────────
+# ── Supabase helpers ─────────────────────────────────────────────────────────────────
 
 def _sb_headers() -> dict:
     return {
@@ -169,7 +169,7 @@ def _write_run_summary(counts: dict):
         print(f"  [supabase] WARNING: run summary failed: {e}")
 
 
-# ── Spec / design file helpers ───────────────────────────────────────────────────────────
+# ── Spec / design file helpers ───────────────────────────────────────────────────────
 
 def _read_local(candidates: list[str]) -> str:
     for path in candidates:
@@ -179,7 +179,7 @@ def _read_local(candidates: list[str]) -> str:
     return ""
 
 
-# ── Fetch needs-design-review issues ───────────────────────────────────────────────────────
+# ── Fetch needs-design-review issues ───────────────────────────────────────────────
 
 def _fetch_design_review_issues() -> list[dict]:
     if not GITHUB_TOKEN or not GITHUB_REPOSITORY:
@@ -204,7 +204,7 @@ def _fetch_design_review_issues() -> list[dict]:
         return []
 
 
-# ── Main ─────────────────────────────────────────────────────────────────────────────────
+# ── Main ──────────────────────────────────────────────────────────────────────────────
 
 def run_review_pipeline():
     print(f"\n{'='*60}")
@@ -223,7 +223,7 @@ def run_review_pipeline():
 
     ensure_labels(GITHUB_TOKEN, GITHUB_REPOSITORY)
 
-    # ── Step 1: Fetch unresolved findings from Supabase ────────────────────────────────────
+    # ── Step 1: Fetch unresolved findings from Supabase ────────────────────────────
     print("[Step 1] Fetching audit and coordination findings...")
     audit_findings = _fetch_findings("code_audit_findings")
     coord_findings = _fetch_findings("coordination_findings")
@@ -247,7 +247,7 @@ def run_review_pipeline():
         classifications = []
         print("  No new findings to classify.")
 
-    # ── Step 3: Create/update GitHub issues for findings ─────────────────────────────
+    # ── Step 3: Create/update GitHub issues for findings ──────────────────────────
     print("[Step 3] Creating/updating GitHub issues for findings...")
     audit_map = {f["id"]: f for f in audit_findings}
     coord_map = {f["id"]: f for f in coord_findings}
@@ -267,14 +267,14 @@ def run_review_pipeline():
             store_issue_number(SUPABASE_URL, SUPABASE_KEY, table, fid, issue_num)
             counts["issues_created"] += 1
 
-    # ── Step 4: Fetch unprocessed user feedback ───────────────────────────────────────
+    # ── Step 4: Fetch unprocessed user feedback ─────────────────────────────────────
     print("[Step 4] Fetching unprocessed user feedback...")
     conn = get_conn()
     feedback_rows = fetch_unprocessed_feedback(conn, PROJECT_ID)
     counts["feedback_items"] = len(feedback_rows)
     print(f"  {len(feedback_rows)} unprocessed feedback item(s)")
 
-    # ── Step 5: Fetch project spec, file tree, and agent prompts ─────────────────────
+    # ── Step 5: Fetch project spec, file tree, and agent prompts ───────────────────
     print("[Step 5] Fetching project spec and file tree...")
     spec_text = _read_local(SPEC_CANDIDATES)
     design_text = _read_local(DESIGN_CANDIDATES)
@@ -293,7 +293,7 @@ def run_review_pipeline():
         )
         _log_performance("feedback_synthesis_agent", "synthesise_feedback", True,
                          synth_usage.get("input_tokens", 0), synth_usage.get("output_tokens", 0))
-        # ── Step 7: Create/update GitHub issues for feedback ─────────────────
+        # ── Step 7: Create/update GitHub issues for feedback ───────────────────────
         print("[Step 7] Creating/updating GitHub issues for feedback...")
         for item in items:
             issue_num = create_feedback_issue(GITHUB_TOKEN, GITHUB_REPOSITORY, item)
@@ -303,7 +303,7 @@ def run_review_pipeline():
     else:
         print("  No feedback to synthesise.")
 
-    # ── Step 8: Design review ───────────────────────────────────────────────────────────
+    # ── Step 8: Design review ────────────────────────────────────────────────────────
     print("[Step 8] Running design reviews...")
     design_issues = _fetch_design_review_issues()
     if design_issues:
@@ -339,7 +339,7 @@ def run_review_pipeline():
         print(f"  Marked {len(processed_ids)} feedback item(s) as processed.")
     conn.close()
 
-    # ── Step 10: Write run summary ─────────────────────────────────────────────────
+    # ── Step 10: Write run summary ───────────────────────────────────────────────────
     print("[Step 10] Writing run summary...")
     _write_run_summary(counts)
 
