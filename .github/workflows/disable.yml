@@ -1,0 +1,9 @@
+name: Disable workflows
+
+on:
+  push:
+    paths-ignore:
+    - "**"
+  pull_request:
+    paths-ignore:
+    - "**"
